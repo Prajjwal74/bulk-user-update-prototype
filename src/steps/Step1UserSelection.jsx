@@ -149,6 +149,7 @@ export function Step1UserSelection() {
     selectedUsers,
     addUser,
     removeUser,
+    clearAllUsers,
     searchQuery,
     setSearchQuery,
     searchResults,
@@ -440,7 +441,19 @@ export function Step1UserSelection() {
 
         <div className="user-selection-list">
           <div className="card user-selection-list-card">
-            <h3 className="user-selection-list-title">Selected users ({selectedUsers.length})</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 className="user-selection-list-title" style={{ margin: 0 }}>Selected users ({selectedUsers.length})</h3>
+              {selectedUsers.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem', color: '#c0392b' }}
+                  onClick={clearAllUsers}
+                >
+                  Remove All
+                </button>
+              )}
+            </div>
             <p className="user-selection-list-hint">One list — add via search or filters on the left.</p>
             {selectedUsers.length === 0 ? (
               <p className="empty-state">No users yet. Use search or filters to add users to this list.</p>

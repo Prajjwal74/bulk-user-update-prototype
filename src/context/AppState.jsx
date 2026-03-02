@@ -166,6 +166,10 @@ export function AppStateProvider({ children }) {
     setSelectedUsers((prev) => prev.filter((u) => u.id !== userId));
   }, []);
 
+  const clearAllUsers = useCallback(() => {
+    setSelectedUsers([]);
+  }, []);
+
   const addFilter = useCallback((filter) => {
     setFilters((prev) => [...prev, filter]);
   }, []);
@@ -247,6 +251,7 @@ export function AppStateProvider({ children }) {
         applyFilterSelection,
         addUser,
         removeUser,
+        clearAllUsers,
         editMethod,
         setEditMethod,
         fieldEdits,

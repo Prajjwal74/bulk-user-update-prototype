@@ -1,12 +1,25 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppState } from '../context/AppState';
 
+const COUNTRY_CURRENCY = {
+  USA: 'USD', India: 'INR', UK: 'GBP', Canada: 'CAD', Australia: 'AUD',
+  Germany: 'EUR', France: 'EUR', Japan: 'JPY', Singapore: 'SGD',
+  Brazil: 'BRL', Mexico: 'MXN', Spain: 'EUR', Italy: 'EUR', Netherlands: 'EUR',
+};
+
 const FIELDS = [
-  { id: 'compensation', label: 'Compensation', type: 'currency', operations: ['change_to', 'increase_by', 'decrease_by', 'increase_pct', 'decrease_pct'] },
-  { id: 'title', label: 'Title', type: 'text', operations: ['change_to'] },
-  { id: 'department', label: 'Department', type: 'select', options: ['Engineering', 'Product', 'Design', 'Sales'], operations: ['change_to'] },
-  { id: 'location', label: 'Location', type: 'text', operations: ['change_to'] },
-  { id: 'level', label: 'Level', type: 'text', operations: ['change_to'] },
+  { id: 'compensation', label: 'Compensation', type: 'currency', operations: ['change_to', 'increase_by', 'decrease_by', 'increase_pct', 'decrease_pct'], placeholder: 'e.g. 50000' },
+  { id: 'title', label: 'Title', type: 'text', operations: ['change_to', 'append', 'prepend'], placeholder: 'e.g. Senior Engineer' },
+  { id: 'department', label: 'Department', type: 'select', options: ['Engineering', 'Product', 'Design', 'Sales', 'Marketing', 'Finance', 'HR', 'Operations', 'Legal'], operations: ['change_to'] },
+  { id: 'location', label: 'Location', type: 'text', operations: ['change_to'], placeholder: 'e.g. New York, NY' },
+  { id: 'level', label: 'Level', type: 'text', operations: ['change_to', 'promote', 'demote'], placeholder: 'e.g. L5' },
+  { id: 'manager', label: 'Manager', type: 'text', operations: ['change_to', 'clear'], placeholder: 'Manager name or ID' },
+  { id: 'employment_type', label: 'Employment Type', type: 'select', options: ['Full-time', 'Part-time', 'Contract', 'Intern', 'Temporary'], operations: ['change_to'] },
+  { id: 'work_mode', label: 'Work Mode', type: 'select', options: ['Remote', 'Hybrid', 'On-site'], operations: ['change_to'] },
+  { id: 'cost_center', label: 'Cost Center', type: 'text', operations: ['change_to', 'clear'], placeholder: 'e.g. CC-4200' },
+  { id: 'currency', label: 'Pay Currency', type: 'select', options: ['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD', 'JPY'], operations: ['change_to'] },
+  { id: 'status', label: 'Status', type: 'select', options: ['Active', 'On Leave', 'Inactive', 'Suspended'], operations: ['change_to'] },
+  { id: 'team', label: 'Team / Group', type: 'text', operations: ['change_to', 'add_to', 'remove_from', 'clear'], placeholder: 'e.g. Platform' },
 ];
 
 const OP_LABELS = {
@@ -15,6 +28,13 @@ const OP_LABELS = {
   decrease_by: 'Decrease by (amount)',
   increase_pct: 'Increase by (%)',
   decrease_pct: 'Decrease by (%)',
+  append: 'Append',
+  prepend: 'Prepend',
+  promote: 'Promote (+1 level)',
+  demote: 'Demote (−1 level)',
+  clear: 'Clear value',
+  add_to: 'Add to',
+  remove_from: 'Remove from',
 };
 
 export function Step2FieldSelection() {
@@ -40,12 +60,90 @@ export function Step2FieldSelection() {
   const [showCsvErrors, setShowCsvErrors] = useState(false);
   const [csvExcludeRows, setCsvExcludeRows] = useState(false);
 
+  const NO_VALUE_OPS = ['promote', 'demote', 'clear'];
+
+  const needsValue = (op) => !NO_VALUE_OPS.includes(op);
+
+  const userCurrencies = useMemo(() => {
+    const currencies = new Map();
+    for (const u of selectedUsers) {
+      const cur = COUNTRY_CURRENCY[u.country] || 'Unknown';
+      if (!currencies.has(cur)) currencies.set(cur, []);
+      currencies.get(cur).push(u);
+    }
+    return currencies;
+  }, [selectedUsers]);
+
+  const hasMultipleCurrencies = userCurrencies.size > 1;
+
+  const userCountries = useMemo(() => {
+    const countries = new Set(selectedUsers.map((u) => u.country));
+    return countries;
+  }, [selectedUsers]);
+
+  const userDepartments = useMemo(() => {
+    const depts = new Set(selectedUsers.map((u) => u.department));
+    return depts;
+  }, [selectedUsers]);
+
+  const activeConflict = useMemo(() => {
+    if (!newField || selectedUsers.length === 0) return null;
+
+    const currencySummary = [...userCurrencies.keys()].join(', ');
+
+    if (newField === 'compensation' && hasMultipleCurrencies) {
+      if (['increase_by', 'decrease_by', 'change_to'].includes(newOp)) {
+        return {
+          severity: 'error',
+          title: 'Currency conflict',
+          message: `Users have different currencies (${currencySummary}). Use a percentage operation or split by country.`,
+        };
+      }
+      if (['increase_pct', 'decrease_pct'].includes(newOp)) {
+        return {
+          severity: 'warning',
+          title: 'Multiple currencies',
+          message: `Users paid in ${currencySummary}. Percentages work across currencies — verify this is intentional.`,
+        };
+      }
+    }
+
+    if (newField === 'currency' && hasMultipleCurrencies) {
+      return {
+        severity: 'error',
+        title: 'Currency conflict',
+        message: `Users already on different currencies (${currencySummary}). Process each group separately or adjust compensation in the same batch.`,
+      };
+    }
+
+    if (newField === 'work_mode' && newOp === 'change_to' && userCountries.size > 1) {
+      return {
+        severity: 'warning',
+        title: 'Multiple countries',
+        message: `Users span ${userCountries.size} countries. Verify the work mode is feasible for all locations.`,
+      };
+    }
+
+    if (newField === 'department' && newOp === 'change_to' && userDepartments.size > 1) {
+      return {
+        severity: 'warning',
+        title: 'Cross-department change',
+        message: `Users are in ${userDepartments.size} departments. This will affect reporting lines and cost centers.`,
+      };
+    }
+
+    return null;
+  }, [newField, newOp, selectedUsers, userCurrencies, hasMultipleCurrencies, userCountries, userDepartments]);
+
+  const isBlocked = activeConflict?.severity === 'error';
+
   const validateValue = (fieldId, op, value) => {
+    if (!needsValue(op)) return '';
     const f = FIELDS.find((x) => x.id === fieldId);
     if (!f || !value) return '';
     if (f.type === 'currency' && (op.includes('increase') || op.includes('decrease'))) {
       const n = parseFloat(value);
-      if (isNaN(n) || n < 0) return 'Enter a valid number.';
+      if (isNaN(n) || n < 0) return 'Enter a valid positive number.';
     }
     if (f.type === 'currency' && op === 'change_to') {
       const n = parseFloat(String(value).replace(/[$,]/g, ''));
@@ -60,11 +158,19 @@ export function Step2FieldSelection() {
 
   const handleAddFieldEdit = () => {
     if (!newField) return;
+    if (isBlocked) return;
+    if (needsValue(newOp) && !newValue.trim()) {
+      setNewValueError('Value is required.');
+      return;
+    }
     const err = validateValue(newField, newOp, newValue);
     setNewValueError(err);
     if (err) return;
     const field = FIELDS.find((f) => f.id === newField);
-    setFieldEdits((prev) => [...prev, { field: field?.label || newField, fieldId: newField, operation: newOp, value: newValue }]);
+    setFieldEdits((prev) => [
+      ...prev,
+      { field: field?.label || newField, fieldId: newField, operation: newOp, value: needsValue(newOp) ? newValue : '' },
+    ]);
     setNewField('');
     setNewOp('change_to');
     setNewValue('');
@@ -160,25 +266,40 @@ export function Step2FieldSelection() {
       {editMethod === 'filters' && (
         <div className="card" style={{ marginBottom: '1rem' }}>
           <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1rem' }}>Field changes</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end', marginBottom: '1rem' }}>
+          <div className="field-change-row">
             <select
               className="form-input"
-              style={{ width: '160px' }}
               value={newField}
-              onChange={(e) => setNewField(e.target.value)}
+              onChange={(e) => {
+                const id = e.target.value;
+                setNewField(id);
+                const ops = FIELDS.find((f) => f.id === id)?.operations || ['change_to'];
+                setNewOp(ops[0]);
+                setNewValue('');
+                setNewValueError('');
+              }}
             >
               <option value="">Select field</option>
-              {FIELDS.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.label}
-                </option>
-              ))}
+              {FIELDS.map((f) => {
+                const alreadyAdded = fieldEdits.some((e) => e.fieldId === f.id);
+                return (
+                  <option key={f.id} value={f.id} disabled={alreadyAdded}>
+                    {f.label}{alreadyAdded ? ' (already added)' : ''}
+                  </option>
+                );
+              })}
             </select>
+
             <select
               className="form-input"
-              style={{ width: '180px' }}
               value={newOp}
-              onChange={(e) => setNewOp(e.target.value)}
+              onChange={(e) => {
+                setNewOp(e.target.value);
+                if (NO_VALUE_OPS.includes(e.target.value)) {
+                  setNewValue('');
+                  setNewValueError('');
+                }
+              }}
             >
               {(FIELDS.find((f) => f.id === newField)?.operations || ['change_to']).map((op) => (
                 <option key={op} value={op}>
@@ -186,33 +307,80 @@ export function Step2FieldSelection() {
                 </option>
               ))}
             </select>
-            <input
-              type="text"
-              className={`form-input ${newValueError ? 'error' : ''}`}
-              style={{ width: '140px' }}
-              placeholder={FIELDS.find((f) => f.id === newField)?.type === 'currency' ? 'e.g. 50000' : 'Value'}
-              value={newValue}
-              onChange={(e) => {
-                setNewValue(e.target.value);
-                setNewValueError(validateValue(newField, newOp, e.target.value));
-              }}
-            />
-            <button type="button" className="btn btn-secondary" onClick={handleAddFieldEdit}>
+
+            {needsValue(newOp) && (() => {
+              const selectedField = FIELDS.find((f) => f.id === newField);
+              if (selectedField?.type === 'select') {
+                return (
+                  <select
+                    className={`form-input ${newValueError ? 'error' : ''}`}
+                    value={newValue}
+                    onChange={(e) => {
+                      setNewValue(e.target.value);
+                      setNewValueError('');
+                    }}
+                  >
+                    <option value="">Select value</option>
+                    {(selectedField.options || []).map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                );
+              }
+              return (
+                <input
+                  type="text"
+                  className={`form-input ${newValueError ? 'error' : ''}`}
+                  placeholder={selectedField?.placeholder || 'Value'}
+                  value={newValue}
+                  onChange={(e) => {
+                    setNewValue(e.target.value);
+                    setNewValueError(validateValue(newField, newOp, e.target.value));
+                  }}
+                />
+              );
+            })()}
+
+            {!needsValue(newOp) && (
+              <span className="field-change-no-value">No value needed</span>
+            )}
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleAddFieldEdit}
+              disabled={isBlocked}
+            >
               Add change
             </button>
           </div>
+
+          {activeConflict && (
+            <div className={`conflict-banner conflict-banner--${activeConflict.severity}`}>
+              <div className="conflict-banner-icon">
+                {activeConflict.severity === 'error' ? '⛔' : '⚠️'}
+              </div>
+              <div className="conflict-banner-body">
+                <strong className="conflict-banner-title">{activeConflict.title}</strong>
+                <p className="conflict-banner-msg">{activeConflict.message}</p>
+              </div>
+            </div>
+          )}
+
           {newValueError && <p className="error-message">{newValueError}</p>}
           {fieldEdits.length > 0 && (
-            <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+            <div className="field-edits-list">
               {fieldEdits.map((e, i) => (
-                <li key={i} style={{ marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>{e.field} → {OP_LABELS[e.operation] || e.operation}: {e.value}</span>
-                  <button type="button" className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }} onClick={() => handleRemoveFieldEdit(i)}>
-                    Remove
+                <div key={i} className="field-edit-chip">
+                  <span className="field-edit-chip-label">{e.field}</span>
+                  <span className="field-edit-chip-op">{OP_LABELS[e.operation] || e.operation}</span>
+                  {e.value && <span className="field-edit-chip-value">{e.value}</span>}
+                  <button type="button" className="field-edit-chip-remove" onClick={() => handleRemoveFieldEdit(i)} aria-label="Remove">
+                    &times;
                   </button>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
       )}
