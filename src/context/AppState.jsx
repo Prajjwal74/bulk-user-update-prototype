@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, useMemo } from 'react';
 
 const STEP_LABELS = [
   'User Selection',
@@ -236,6 +236,12 @@ export function AppStateProvider({ children }) {
     setFilterUserCount(count);
   }, [filters]);
 
+  const filterNewCount = useMemo(() => {
+    if (filters.length === 0) return 0;
+    const existingIds = new Set(selectedUsers.map((u) => u.id));
+    return MOCK_USERS.filter((u) => filters.every((f) => matchesFilter(u, f)) && !existingIds.has(u.id)).length;
+  }, [filters, selectedUsers]);
+
   const applyFilterSelection = useCallback(() => {
     const fromFilter = MOCK_USERS.filter((u) => filters.every((f) => matchesFilter(u, f)));
     setSelectedUsers((prev) => {
@@ -249,7 +255,7 @@ export function AppStateProvider({ children }) {
   const CRITICAL_LABELS = ['Compensation', 'Pay Currency', 'Status'];
 
   const submitForApproval = useCallback((opts = {}) => {
-    const { changedFieldNames = [], requiresApproval = true } = opts;
+    const { changedFieldNames = [], requiresApproval = true, scheduledDate = null } = opts;
 
     const id = `REQ-${Date.now()}`;
     setRequestId(id);
@@ -261,22 +267,50 @@ export function AppStateProvider({ children }) {
 
     const effCount = selectedUsers.length - excludedUserIds.length;
 
-    if (requiresApproval) {
+    const baseEntry = {
+      requestId: id,
+      submittedBy: 'Current User',
+      date: new Date().toISOString(),
+      userCount: effCount,
+      fieldsChanged: fieldsStr,
+      users: selectedUsers.filter((u) => !excludedUserIds.includes(u.id)),
+      fieldEdits: [...fieldEdits],
+      editMethod,
+      parsedCsvData,
+    };
+
+    if (scheduledDate && requiresApproval) {
+      setApprovalStatus('scheduled_pending');
+      setHistory((prev) => [
+        ...prev,
+        {
+          ...baseEntry,
+          status: 'Scheduled – Pending Approval',
+          statusDetail: `Scheduled for ${new Date(scheduledDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · Awaiting approval`,
+          scheduledDate,
+        },
+      ]);
+      setCurrentStep(4);
+    } else if (scheduledDate) {
+      setApprovalStatus('scheduled');
+      setHistory((prev) => [
+        ...prev,
+        {
+          ...baseEntry,
+          status: 'Scheduled',
+          statusDetail: `Scheduled for ${new Date(scheduledDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+          scheduledDate,
+        },
+      ]);
+      setCurrentStep(4);
+    } else if (requiresApproval) {
       setApprovalStatus('pending');
       setHistory((prev) => [
         ...prev,
         {
-          requestId: id,
-          submittedBy: 'Current User',
-          date: new Date().toISOString(),
-          userCount: effCount,
-          fieldsChanged: fieldsStr,
+          ...baseEntry,
           status: 'pending',
           statusDetail: 'Pending approval — critical fields changed',
-          users: selectedUsers.filter((u) => !excludedUserIds.includes(u.id)),
-          fieldEdits: [...fieldEdits],
-          editMethod,
-          parsedCsvData,
         },
       ]);
       setCurrentStep(4);
@@ -285,17 +319,9 @@ export function AppStateProvider({ children }) {
       setHistory((prev) => [
         ...prev,
         {
-          requestId: id,
-          submittedBy: 'Current User',
-          date: new Date().toISOString(),
-          userCount: effCount,
-          fieldsChanged: fieldsStr,
+          ...baseEntry,
           status: 'Processing',
           statusDetail: 'Applying changes…',
-          users: selectedUsers.filter((u) => !excludedUserIds.includes(u.id)),
-          fieldEdits: [...fieldEdits],
-          editMethod,
-          parsedCsvData,
         },
       ]);
       setCurrentStep(4);
@@ -324,6 +350,7 @@ export function AppStateProvider({ children }) {
         removeFilter,
         resetFilters,
         filterUserCount,
+        filterNewCount,
         setFilterUserCount,
         applyFilterSelection,
         addUser,

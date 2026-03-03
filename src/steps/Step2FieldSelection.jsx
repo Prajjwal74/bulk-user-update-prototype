@@ -51,6 +51,7 @@ export function Step2FieldSelection() {
     parsedCsvData,
     setParsedCsvData,
     setValidationErrors,
+    setExcludedUserIds,
     setCurrentStep,
     goToStep,
     selectedUsers,
@@ -170,6 +171,14 @@ export function Step2FieldSelection() {
 
     return '';
   };
+
+  const duplicateFieldWarning = useMemo(() => {
+    if (!newField) return null;
+    const existing = fieldEdits.filter((e) => e.fieldId === newField);
+    if (existing.length === 0) return null;
+    const label = FIELDS.find((f) => f.id === newField)?.label || newField;
+    return `"${label}" already has ${existing.length} edit(s). Adding another may cause conflicting changes.`;
+  }, [newField, fieldEdits]);
 
   const handleAddFieldEdit = () => {
     if (!newField) return;
@@ -302,9 +311,17 @@ export function Step2FieldSelection() {
     }
   };
 
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE) {
+      setCsvValidation({ valid: false, totalRows: 0, errorCount: 1, errors: [{ row: 0, col: '', type: 'format', message: `File size (${(file.size / 1024 / 1024).toFixed(1)} MB) exceeds the 5 MB limit. Please reduce the file size and try again.` }] });
+      setShowCsvErrors(true);
+      return;
+    }
 
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
     if (!ALLOWED_EXTENSIONS.includes(ext)) {
@@ -424,6 +441,17 @@ export function Step2FieldSelection() {
   };
 
   const handleContinueWithExclusions = () => {
+    if (csvValidation?.errors?.length && parsedCsvData) {
+      const errorRowNums = new Set(csvValidation.errors.map((e) => e.row));
+      const errorUserIds = [];
+      parsedCsvData.rows.forEach((cols, i) => {
+        if (errorRowNums.has(i + 2)) {
+          const uid = String(cols[0] || '').trim();
+          if (uid) errorUserIds.push(uid);
+        }
+      });
+      setExcludedUserIds(errorUserIds);
+    }
     setValidationErrors([]);
     setShowCsvErrors(false);
     setCurrentStep(3);
@@ -589,6 +617,15 @@ export function Step2FieldSelection() {
             </div>
           )}
 
+          {duplicateFieldWarning && (
+            <div className="conflict-banner conflict-banner--warning" style={{ marginTop: '0.5rem' }}>
+              <div className="conflict-banner-icon">⚠️</div>
+              <div className="conflict-banner-body">
+                <strong className="conflict-banner-title">Duplicate field edit</strong>
+                <p className="conflict-banner-msg">{duplicateFieldWarning}</p>
+              </div>
+            </div>
+          )}
           {newValueError && <p className="error-message">{newValueError}</p>}
           {fieldEdits.length > 0 && (
             <div className="field-edits-list">

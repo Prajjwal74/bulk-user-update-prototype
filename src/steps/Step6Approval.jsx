@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppState } from '../context/AppState';
 
 const STATUS_CONFIG = {
@@ -44,6 +44,27 @@ const STATUS_CONFIG = {
     bg: '#fff',
     text: '#991B1B',
   },
+  scheduled: {
+    icon: '📅',
+    label: 'Scheduled',
+    accent: '#7C3AED',
+    bg: '#fff',
+    text: '#5B21B6',
+  },
+  scheduled_pending: {
+    icon: '📅',
+    label: 'Scheduled – Pending Approval',
+    accent: '#7C3AED',
+    bg: '#fff',
+    text: '#5B21B6',
+  },
+  cancelled: {
+    icon: '⊘',
+    label: 'Cancelled',
+    accent: '#6B7280',
+    bg: '#fff',
+    text: '#374151',
+  },
 };
 
 export function Step6Approval() {
@@ -53,13 +74,20 @@ export function Step6Approval() {
     setApprovalStatus,
     setCurrentStep,
     goToStep,
+    history,
     setHistory,
     effectiveUserCount,
   } = useAppState();
 
+  const currentEntry = history.find((h) => h.requestId === requestId);
+  const scheduledDateStr = currentEntry?.scheduledDate
+    ? new Date(currentEntry.scheduledDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    : null;
+
   const [progress, setProgress] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
   const [retrying, setRetrying] = useState(false);
+  const cancelRef = useRef(null);
 
   const simulateProcessing = useCallback(() => {
     setProgress(0);
@@ -92,8 +120,14 @@ export function Step6Approval() {
 
   useEffect(() => {
     if (approvalStatus === 'processing') {
-      return simulateProcessing();
+      const cleanup = simulateProcessing();
+      cancelRef.current = cleanup;
+      return () => {
+        cleanup();
+        cancelRef.current = null;
+      };
     }
+    return undefined;
   }, [approvalStatus, simulateProcessing]);
 
   const handleApprove = () => {
@@ -102,8 +136,23 @@ export function Step6Approval() {
 
   const handleRetryFailed = () => {
     setRetrying(true);
+    setFailedCount(0);
+    setProgress(0);
     setApprovalStatus('processing');
     setTimeout(() => setRetrying(false), 500);
+  };
+
+  const handleCancelProcessing = () => {
+    if (cancelRef.current) cancelRef.current();
+    cancelRef.current = null;
+    setApprovalStatus('cancelled');
+    setHistory((prev) =>
+      prev.map((h) =>
+        h.requestId === requestId
+          ? { ...h, status: 'Cancelled', statusDetail: `Cancelled at ${progress}% — no changes applied` }
+          : h
+      )
+    );
   };
 
   const handleSkipFailed = () => {
@@ -148,12 +197,16 @@ export function Step6Approval() {
     <>
       <header className="step-header">
         <h1 className="step-title">
-          {approvalStatus === 'pending' ? 'Approval & Notify' : 'Apply Changes'}
+          {approvalStatus === 'scheduled' || approvalStatus === 'scheduled_pending' ? 'Scheduled Change' : approvalStatus === 'pending' ? 'Approval & Notify' : 'Apply Changes'}
         </h1>
         <p className="step-description">
-          {approvalStatus === 'pending'
-            ? 'Track the status of your bulk update request.'
-            : 'Changes are being applied to the selected users.'}
+          {approvalStatus === 'scheduled'
+            ? 'Your changes have been scheduled for a future date.'
+            : approvalStatus === 'scheduled_pending'
+              ? 'Your changes are scheduled and awaiting approval.'
+              : approvalStatus === 'pending'
+              ? 'Track the status of your bulk update request.'
+              : 'Changes are being applied to the selected users.'}
         </p>
       </header>
 
@@ -179,9 +232,22 @@ export function Step6Approval() {
                 borderRadius: '4px', transition: 'width 0.3s ease',
               }} />
             </div>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Applying changes… {progress}% complete
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Applying changes… {progress}% complete
+              </p>
+              <button
+                type="button"
+                onClick={handleCancelProcessing}
+                style={{
+                  background: 'none', border: '1px solid #DC2626', color: '#DC2626',
+                  borderRadius: '6px', padding: '0.3rem 0.7rem', fontSize: '0.78rem',
+                  fontWeight: 500, cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </>
         )}
 
@@ -224,9 +290,29 @@ export function Step6Approval() {
             Your request was rejected. You can edit and resubmit.
           </p>
         )}
+        {approvalStatus === 'cancelled' && (
+          <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: cfg.text, lineHeight: 1.5 }}>
+            Processing was cancelled. No changes were applied. You can resubmit or start a new request.
+          </p>
+        )}
+        {(approvalStatus === 'scheduled' || approvalStatus === 'scheduled_pending') && (
+          <div style={{
+            background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '8px',
+            padding: '0.65rem 0.85rem', marginBottom: '0.75rem',
+          }}>
+            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#5B21B6' }}>
+              📅 Scheduled for {scheduledDateStr}
+            </p>
+            <p style={{ margin: '0.35rem 0 0', fontSize: '0.8rem', color: '#6D28D9', lineHeight: 1.5 }}>
+              {approvalStatus === 'scheduled_pending'
+                ? 'Sensitive fields are being modified. Changes will be applied on the scheduled date only after approval is granted.'
+                : 'Changes will be automatically applied on the scheduled date. You will be notified once processing begins.'}
+            </p>
+          </div>
+        )}
       </div>
 
-      {approvalStatus === 'pending' && (
+      {(approvalStatus === 'pending' || approvalStatus === 'scheduled_pending') && (
         <div className="card" style={{ marginBottom: '1rem', background: 'var(--surface)', border: '1px dashed var(--border)' }}>
           <p style={{ margin: '0 0 0.6rem 0', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>
             Simulation controls (prototype only)
@@ -243,21 +329,14 @@ export function Step6Approval() {
       )}
 
       <div className="step-actions">
-        {(approvalStatus === 'approved' || approvalStatus === 'applied') && (
-          <button type="button" className="btn btn-primary" onClick={() => setCurrentStep(0)}>
-            View Edit History
-          </button>
-        )}
-        {approvalStatus === 'rejected' && (
-          <button type="button" className="btn btn-primary" onClick={() => goToStep(1)}>
+        {(approvalStatus === 'rejected' || approvalStatus === 'cancelled') && (
+          <button type="button" className="btn btn-secondary" onClick={() => goToStep(1)}>
             Edit and resubmit
           </button>
         )}
-        {approvalStatus === 'pending' && (
-          <button type="button" className="btn btn-secondary" onClick={() => setCurrentStep(0)}>
-            Edit History
-          </button>
-        )}
+        <button type="button" className="btn btn-primary" onClick={() => setCurrentStep(0)}>
+          View Edit History
+        </button>
       </div>
     </>
   );

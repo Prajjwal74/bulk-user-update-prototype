@@ -301,6 +301,11 @@
   color: var(--text-muted);
 }
 
+.badge--scheduled {
+  background: #EDE9FE;
+  color: #5B21B6;
+}
+
 .empty-state {
   text-align: center;
   padding: 2rem;

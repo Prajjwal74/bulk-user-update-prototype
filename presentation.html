@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bulk User Information Update — Product Case Study</title>
+<style>
+  :root {
+    --primary: #2563EB;
+    --primary-light: #EFF6FF;
+    --dark: #1E293B;
+    --text: #334155;
+    --text-muted: #64748B;
+    --border: #E2E8F0;
+    --surface: #F8FAFC;
+    --danger: #DC2626;
+    --success: #059669;
+    --warning: #D97706;
+    --purple: #7C3AED;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0F172A;
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  .slide-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    background: #fff;
+    overflow-y: auto;
+    padding: 3rem 4.5rem;
+  }
+
+  .slide.active { display: flex; }
+
+  .slide.dark {
+    background: linear-gradient(135deg, #0F172A, #1E293B);
+    color: #F1F5F9;
+  }
+
+  .slide.accent-bg {
+    background: linear-gradient(135deg, #1E40AF, #2563EB);
+    color: #fff;
+  }
+
+  .slide-number {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 2rem;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.5);
+    z-index: 100;
+    font-weight: 500;
+  }
+
+  .slide.active:not(.dark):not(.accent-bg) ~ .slide-number,
+  .slide-number.light { color: var(--text-muted); }
+
+  h1 { font-size: 2.6rem; font-weight: 700; line-height: 1.2; margin-bottom: 1rem; }
+  h2 { font-size: 2rem; font-weight: 700; line-height: 1.25; margin-bottom: 0.75rem; }
+  h3 { font-size: 1.35rem; font-weight: 600; line-height: 1.3; margin-bottom: 0.5rem; }
+  h4 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.35rem; }
+  p { line-height: 1.7; font-size: 1.05rem; }
+
+  .subtitle { font-size: 1.3rem; color: var(--text-muted); line-height: 1.5; }
+  .dark .subtitle { color: #94A3B8; }
+  .accent-bg .subtitle { color: rgba(255,255,255,0.8); }
+
+  .tag {
+    display: inline-block; padding: 0.2rem 0.7rem; border-radius: 99px;
+    font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .tag-blue { background: var(--primary-light); color: var(--primary); }
+  .tag-red { background: #FEF2F2; color: var(--danger); }
+  .tag-green { background: #ECFDF5; color: var(--success); }
+  .tag-purple { background: #F5F3FF; color: var(--purple); }
+  .tag-amber { background: #FFFBEB; color: var(--warning); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+  .card h4 { margin-bottom: 0.5rem; }
+  .card p, .card li { font-size: 0.92rem; color: var(--text); }
+
+  .card-accent { border-left: 4px solid var(--primary); }
+  .card-danger { border-left: 4px solid var(--danger); }
+  .card-success { border-left: 4px solid var(--success); }
+  .card-purple { border-left: 4px solid var(--purple); }
+  .card-amber { border-left: 4px solid var(--warning); }
+
+  ul { padding-left: 1.25rem; }
+  li { margin-bottom: 0.35rem; font-size: 0.95rem; line-height: 1.6; }
+
+  .flow-steps {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin: 1.25rem 0; flex-wrap: wrap;
+  }
+  .flow-step {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1rem; border-radius: 8px;
+    font-size: 0.85rem; font-weight: 600;
+    background: var(--primary-light); color: var(--primary);
+    border: 1px solid #BFDBFE;
+  }
+  .flow-arrow { color: var(--text-muted); font-size: 1.2rem; }
+
+  table.data-table {
+    width: 100%; border-collapse: collapse; font-size: 0.88rem;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  table.data-table th {
+    background: #F1F5F9; text-align: left; padding: 0.6rem 0.75rem;
+    font-weight: 600; font-size: 0.8rem; text-transform: uppercase;
+    letter-spacing: 0.03em; color: var(--text-muted); border-bottom: 1px solid var(--border);
+  }
+  table.data-table td {
+    padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top;
+  }
+  table.data-table tr:last-child td { border-bottom: none; }
+
+  .csv-preview {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    background: #1E293B; color: #E2E8F0; border-radius: 10px;
+    padding: 1rem 1.25rem; font-size: 0.82rem; line-height: 1.7;
+    overflow-x: auto; white-space: pre;
+  }
+  .csv-header { color: #60A5FA; font-weight: 600; }
+  .csv-error { color: #F87171; }
+  .csv-ok { color: #34D399; }
+  .csv-highlight { background: rgba(250, 204, 21, 0.2); }
+
+  .approach-card {
+    border-radius: 12px; padding: 1.5rem; border: 2px solid var(--border);
+    height: 100%;
+  }
+  .approach-card.selected { border-color: var(--primary); background: var(--primary-light); }
+
+  .pro-con { display: flex; gap: 1rem; margin-top: 0.75rem; }
+  .pro-con > div { flex: 1; }
+  .pro-con h5 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+  .pro-con ul { padding-left: 1rem; }
+  .pro-con li { font-size: 0.82rem; margin-bottom: 0.2rem; }
+  .pros h5 { color: var(--success); }
+  .cons h5 { color: var(--danger); }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.3rem 0.7rem; border-radius: 6px;
+    font-size: 0.82rem; font-weight: 500;
+  }
+  .pill-blue { background: #EFF6FF; color: #1E40AF; border-left: 3px solid #3B82F6; }
+  .pill-purple { background: #F5F3FF; color: #5B21B6; border-left: 3px solid #8B5CF6; }
+
+  .edge-case-row {
+    display: flex; align-items: flex-start; gap: 0.6rem;
+    padding: 0.6rem 0; border-bottom: 1px solid var(--border);
+  }
+  .edge-case-row:last-child { border-bottom: none; }
+  .edge-icon {
+    width: 24px; height: 24px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; flex-shrink: 0; font-weight: 700;
+  }
+  .edge-icon.warn { background: #FEF3C7; color: #92400E; }
+  .edge-icon.block { background: #FEE2E2; color: #991B1B; }
+  .edge-icon.info { background: #DBEAFE; color: #1E40AF; }
+  .edge-icon.guard { background: #D1FAE5; color: #065F46; }
+
+  .section-label {
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--primary); font-weight: 700; margin-bottom: 0.5rem;
+  }
+  .dark .section-label { color: #60A5FA; }
+
+  .nav-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.75rem 2rem; background: rgba(15,23,42,0.95);
+    backdrop-filter: blur(8px); z-index: 200;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .nav-bar button {
+    padding: 0.45rem 1.2rem; border-radius: 6px;
+    font-size: 0.85rem; font-weight: 500; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1);
+    color: #fff; transition: all 0.15s;
+  }
+  .nav-bar button:hover { background: rgba(255,255,255,0.2); }
+  .nav-bar button:disabled { opacity: 0.3; cursor: default; }
+  .nav-bar .page-info { color: rgba(255,255,255,0.6); font-size: 0.85rem; }
+
+  .spacer { flex: 1; }
+  .mt-1 { margin-top: 0.75rem; }
+  .mt-2 { margin-top: 1.5rem; }
+  .mb-1 { margin-bottom: 0.75rem; }
+  .mb-2 { margin-bottom: 1.5rem; }
+
+  .challenge-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    font-weight: 700; font-size: 0.85rem;
+  }
+  .dark .challenge-num { background: rgba(96,165,250,0.2); color: #60A5FA; }
+
+  .step-badge {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.35rem 0.85rem; border-radius: 99px;
+    font-size: 0.82rem; font-weight: 600;
+    background: var(--primary); color: #fff;
+  }
+
+  @media print {
+    .nav-bar { display: none; }
+    .slide { position: relative; display: flex !important; page-break-after: always; min-height: 100vh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="slide-container" id="deck">
+
+<!-- ============================================= -->
+<!-- SLIDE 1: Title -->
+<!-- ============================================= -->
+<div class="slide dark active" data-slide="1">
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+    <p class="section-label" style="margin-bottom:1rem;">Product Case Study</p>
+    <h1 style="font-size:3rem; margin-bottom:1rem;">Bulk User Information<br/>Update</h1>
+    <p class="subtitle" style="max-width:700px;">
+      A comprehensive solution for making attribute changes across hundreds of employees simultaneously — with approval workflows, scheduling, validation, and downstream system propagation.
+    </p>
+    <div style="margin-top:2.5rem; display:flex; gap:0.75rem; flex-wrap:wrap;">
+      <span class="tag tag-blue">Prototype Built</span>
+      <span class="tag tag-green">Edge Cases Covered</span>
+      <span class="tag tag-purple">Data Propagation Addressed</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 2: Problem Statement -->
+<!-- ============================================= -->
+<div class="slide" data-slide="2">
+  <p class="section-label">Context</p>
+  <h2>Problem Statement</h2>
+  <p class="subtitle mb-2" style="max-width:800px;">
+    Rippling administrators currently change employee attributes one at a time. Customers need the ability to make changes affecting dozens to hundreds of employees at once.
+  </p>
+
+  <div class="grid-3 mt-1">
+    <div class="card card-accent">
+      <h4>🏢 Scale</h4>
+      <p>Must handle 12 to 500+ employees in a single bulk operation.</p>
+    </div>
+    <div class="card card-accent">
+      <h4>🔀 Multi-Attribute</h4>
+      <p>Multiple fields changed simultaneously, with potentially different values per employee.</p>
+    </div>
+    <div class="card card-accent">
+      <h4>🔗 Interconnected</h4>
+      <p>Changes propagate to first-party products (Payroll, Insurance) and third-party integrations (Slack, GitHub).</p>
+    </div>
+  </div>
+
+  <div class="mt-2">
+    <h3>Key Constraints</h3>
+    <ul style="margin-top:0.5rem;">
+      <li><strong>Updates only</strong> — no bulk onboarding or terminations</li>
+      <li><strong>Mixed value changes</strong> — e.g., different compensation per employee after performance reviews</li>
+      <li><strong>Downstream impact</strong> — every change cascades across Rippling's ecosystem</li>
+      <li><strong>Sensitive fields</strong> — compensation, currency, and status require approval workflows</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 3: Approach Selection - Question 1 -->
+<!-- ============================================= -->
+<div class="slide" data-slide="3">
+  <p class="section-label">Question 1</p>
+  <h2>How Did I Choose My Approach?</h2>
+  <p class="subtitle mb-2">Three primary approaches were evaluated based on user needs, scalability, and flexibility.</p>
+
+  <div class="grid-3">
+    <div class="approach-card">
+      <span class="tag tag-amber" style="margin-bottom:0.75rem; display:inline-block;">Option A</span>
+      <h3>Spreadsheet-Only Upload</h3>
+      <p style="font-size:0.88rem; margin-bottom:0.75rem;">Users download a template CSV, make changes offline, and re-upload for processing.</p>
+      <div class="pro-con">
+        <div class="pros"><h5>✓ Pros</h5><ul><li>Familiar Excel workflow</li><li>Handles per-user different values naturally</li><li>Good for very large batches</li></ul></div>
+        <div class="cons"><h5>✕ Cons</h5><ul><li>Error-prone (typos, format issues)</li><li>No real-time validation</li><li>Poor for uniform changes</li></ul></div>
+      </div>
+    </div>
+
+    <div class="approach-card">
+      <span class="tag tag-amber" style="margin-bottom:0.75rem; display:inline-block;">Option B</span>
+      <h3>Filter + Rule-Based Only</h3>
+      <p style="font-size:0.88rem; margin-bottom:0.75rem;">Select users via filters, then apply uniform operations (increase salary by 10%, change department, etc.).</p>
+      <div class="pro-con">
+        <div class="pros"><h5>✓ Pros</h5><ul><li>No file handling needed</li><li>Fast for uniform changes</li><li>In-app validation</li></ul></div>
+        <div class="cons"><h5>✕ Cons</h5><ul><li>Cannot handle per-user values</li><li>Limited for complex scenarios</li><li>Doesn't scale for mixed changes</li></ul></div>
+      </div>
+    </div>
+
+    <div class="approach-card selected">
+      <span class="tag tag-blue" style="margin-bottom:0.75rem; display:inline-block;">✓ Chosen</span>
+      <h3>Hybrid: Filter + Rules & CSV Upload</h3>
+      <p style="font-size:0.88rem; margin-bottom:0.75rem;">Combine both methods — users choose the best tool for their specific use case within the same flow.</p>
+      <div class="pro-con">
+        <div class="pros"><h5>✓ Pros</h5><ul><li>Best of both worlds</li><li>Handles all use cases</li><li>Flexible for any batch size</li><li>In-app + file validation</li></ul></div>
+        <div class="cons"><h5>✕ Cons</h5><ul><li>More complex to build</li><li>Two paths to test & maintain</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 4: Why Hybrid -->
+<!-- ============================================= -->
+<div class="slide" data-slide="4">
+  <p class="section-label">Question 1 — Continued</p>
+  <h2>Why the Hybrid Approach Wins</h2>
+
+  <div class="grid-2 mt-2">
+    <div>
+      <h3 style="margin-bottom:1rem;">Real-World Use Cases Mapped</h3>
+
+      <div class="card mb-1" style="background:#ECFDF5; border-color:#A7F3D0;">
+        <h4>🎯 Uniform Changes → Filter + Rules</h4>
+        <p style="font-size:0.88rem;">"Move everyone in the NYC office to the new building"<br/>"Give all L3 engineers a 5% raise"</p>
+      </div>
+
+      <div class="card mb-1" style="background:#EFF6FF; border-color:#BFDBFE;">
+        <h4>📊 Per-User Changes → CSV Upload</h4>
+        <p style="font-size:0.88rem;">"After annual reviews, each person gets a different new compensation, title, and level"</p>
+      </div>
+
+      <div class="card" style="background:#F5F3FF; border-color:#DDD6FE;">
+        <h4>🔄 Combined Workflow</h4>
+        <p style="font-size:0.88rem;">Select users via filters, then either apply rules or download a pre-filled template to fill in specifics offline.</p>
+      </div>
+    </div>
+
+    <div>
+      <h3 style="margin-bottom:1rem;">Design Principles</h3>
+      <div class="card card-accent mb-1">
+        <h4>Progressive Disclosure</h4>
+        <p style="font-size:0.88rem;">Simple operations stay simple. Complexity is available when needed but never forced on the user.</p>
+      </div>
+      <div class="card card-accent mb-1">
+        <h4>Guardrails, Not Gatekeeping</h4>
+        <p style="font-size:0.88rem;">Validation warns about conflicts (currency mismatches, cross-department changes) without hard-blocking unless necessary.</p>
+      </div>
+      <div class="card card-accent mb-1">
+        <h4>Auditability First</h4>
+        <p style="font-size:0.88rem;">Every change is tracked with full history, downloadable change sheets, and reversal capabilities.</p>
+      </div>
+      <div class="card card-accent">
+        <h4>Approval Where It Matters</h4>
+        <p style="font-size:0.88rem;">Only sensitive fields (compensation, currency, status) trigger approval. Non-sensitive changes apply directly.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 5: Flow Overview -->
+<!-- ============================================= -->
+<div class="slide accent-bg" data-slide="5">
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+    <p style="font-size:0.85rem; text-transform:uppercase; letter-spacing:0.08em; opacity:0.7; margin-bottom:1rem;">Question 2 — Product Flow</p>
+    <h1 style="font-size:2.8rem;">Walkthrough of the<br/>Bulk Change Flow</h1>
+    <p class="subtitle" style="max-width:600px; margin-top:1rem; color:rgba(255,255,255,0.8);">
+      A guided, multi-step wizard that takes administrators from user selection through to change application — with validation, preview, and approval at every stage.
+    </p>
+
+    <div style="display:flex; align-items:center; gap:0.6rem; margin-top:2.5rem; flex-wrap:wrap; justify-content:center;">
+      <div class="flow-step" style="background:rgba(255,255,255,0.15); color:#fff; border-color:rgba(255,255,255,0.25);">📋 Edit History</div>
+      <span class="flow-arrow" style="color:rgba(255,255,255,0.4);">→</span>
+      <div class="flow-step" style="background:rgba(255,255,255,0.15); color:#fff; border-color:rgba(255,255,255,0.25);">👥 Select Users</div>
+      <span class="flow-arrow" style="color:rgba(255,255,255,0.4);">→</span>
+      <div class="flow-step" style="background:rgba(255,255,255,0.15); color:#fff; border-color:rgba(255,255,255,0.25);">✏️ Define Changes</div>
+      <span class="flow-arrow" style="color:rgba(255,255,255,0.4);">→</span>
+      <div class="flow-step" style="background:rgba(255,255,255,0.15); color:#fff; border-color:rgba(255,255,255,0.25);">👁️ Preview & Submit</div>
+      <span class="flow-arrow" style="color:rgba(255,255,255,0.4);">→</span>
+      <div class="flow-step" style="background:rgba(255,255,255,0.15); color:#fff; border-color:rgba(255,255,255,0.25);">✅ Status & Apply</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 6: Step 1 - User Selection -->
+<!-- ============================================= -->
+<div class="slide" data-slide="6">
+  <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.25rem;">
+    <span class="step-badge">Step 1</span>
+    <h2 style="margin:0;">Select Users</h2>
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <h3>Two Selection Methods</h3>
+      <div class="card card-accent mb-1 mt-1">
+        <h4>🔍 Search</h4>
+        <p>Search by name, employee ID, role, or country. Add users individually or in batches. Duplicates are automatically detected.</p>
+      </div>
+      <div class="card card-accent mb-1">
+        <h4>🎛️ Filters</h4>
+        <p>Filter by <strong>Country</strong>, <strong>Department</strong>, and <strong>Role</strong> (with sub-role hierarchy: L1/L2/L3). Apply combined AND-logic filters to narrow results.</p>
+      </div>
+      <div class="card card-accent">
+        <h4>📋 Selected Users List</h4>
+        <p>Running count of selected users. Individual removal. "X user(s) selected" indicator with proceed button.</p>
+      </div>
+    </div>
+    <div>
+      <h3>Key UX Details</h3>
+      <ul style="margin-top:0.75rem;">
+        <li><strong>Role hierarchy:</strong> Product, Tech, Design → each with main roles and L1/L2/L3 sub-levels</li>
+        <li><strong>Smart CTA:</strong> "Add users to list" button disables and shows "All users already added" when all filtered users are already selected</li>
+        <li><strong>Filters persist</strong> after adding users — not cleared on apply</li>
+        <li><strong>Max 500 users</strong> with warning when limit approached</li>
+        <li><strong>Search results</strong> capped at 10 for performance</li>
+        <li><strong>"Already added"</strong> label shown inline for duplicate users</li>
+      </ul>
+
+      <div class="card card-danger mt-1">
+        <h4>Edge Cases Handled</h4>
+        <ul>
+          <li>Max 500 user limit with warning</li>
+          <li>Duplicate user prevention</li>
+          <li>Empty search / no results states</li>
+          <li>Filter with 0 new matching users</li>
+          <li>Proceed blocked when 0 users selected</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 7: Step 2 - Field Selection -->
+<!-- ============================================= -->
+<div class="slide" data-slide="7">
+  <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.25rem;">
+    <span class="step-badge">Step 2</span>
+    <h2 style="margin:0;">Define Changes</h2>
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <h3>Method A: Filter + Rules</h3>
+      <p class="mb-1" style="font-size:0.92rem; color:var(--text-muted);">Apply uniform operations across all selected users.</p>
+
+      <table class="data-table mb-1">
+        <thead>
+          <tr><th>Field</th><th>Operations Available</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Compensation</strong> <span class="tag tag-red" style="font-size:0.65rem;">Sensitive</span></td><td>Change to, ±Amount, ±Percentage</td></tr>
+          <tr><td><strong>Pay Currency</strong> <span class="tag tag-red" style="font-size:0.65rem;">Sensitive</span></td><td>Change to</td></tr>
+          <tr><td><strong>Status</strong> <span class="tag tag-red" style="font-size:0.65rem;">Sensitive</span></td><td>Change to</td></tr>
+          <tr><td><strong>Title</strong></td><td>Change to, Append, Prepend</td></tr>
+          <tr><td><strong>Level</strong></td><td>Change to, Promote, Demote</td></tr>
+          <tr><td><strong>Department</strong></td><td>Change to</td></tr>
+          <tr><td><strong>Location, Manager, Work Mode, Cost Center, Employment Type, Team</strong></td><td>Change to, Clear, Add/Remove</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:0.82rem; color:var(--text-muted);">12 fields supported · Each field can only be added once</p>
+    </div>
+
+    <div>
+      <h3>Method B: CSV Upload</h3>
+      <p class="mb-1" style="font-size:0.92rem; color:var(--text-muted);">Download pre-filled template, edit offline, re-upload.</p>
+
+      <div class="card card-accent mb-1">
+        <h4>📥 Template Download</h4>
+        <p>Pre-populated with selected users' current data. Headers: User ID, Name, Compensation, Title, Department, Location.</p>
+      </div>
+      <div class="card card-accent mb-1">
+        <h4>📤 Upload & Validate</h4>
+        <p>Supports .csv, .xls, .xlsx · Max 5 MB. Header validation, per-row data checks, User ID matching against selected users.</p>
+      </div>
+      <div class="card card-danger">
+        <h4>Conflict Detection</h4>
+        <ul>
+          <li><strong>Currency mismatch:</strong> blocks absolute compensation changes when users have different currencies</li>
+          <li><strong>Cross-country work mode:</strong> warns for multi-country groups</li>
+          <li><strong>Cross-department changes:</strong> warns when changing departments across groups</li>
+          <li><strong>Duplicate field edits:</strong> warns when same field added twice</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 8: CSV Handling Details -->
+<!-- ============================================= -->
+<div class="slide" data-slide="8">
+  <p class="section-label">CSV Workflow Details</p>
+  <h2>CSV: Template → Upload → Validate → Error Handling</h2>
+
+  <div class="grid-2 mt-2">
+    <div>
+      <h3 class="mb-1">📥 Sample Template CSV</h3>
+      <div class="csv-preview">
+<span class="csv-header">User ID    Name              Compensation  Title           Department      Location</span>
+EMP-001    Alice Johnson     100000        Sr. Engineer    Engineering     San Francisco
+EMP-002    Bob Smith         100000        Designer        Design          New York
+EMP-003    Carol Williams    100000        PM              Product         London
+EMP-004    David Brown       100000        Engineer        Engineering     San Francisco
+EMP-005    Eve Davis         100000        Sr. Designer    Design          Berlin</div>
+      <p style="font-size:0.82rem; color:var(--text-muted); margin-top:0.5rem;">
+        Pre-filled with selected users · Default compensation placeholder · Downloaded as .xls with styled headers
+      </p>
+
+      <h3 class="mb-1 mt-2">✅ Final Change Download Sheet</h3>
+      <div class="csv-preview">
+<span class="csv-header">User ID    Name              Compensation  Title             Department    Location</span>
+EMP-001    Alice Johnson     <span class="csv-highlight">120000</span>        <span class="csv-highlight">Staff Engineer</span>   Engineering     San Francisco
+EMP-003    Carol Williams    <span class="csv-highlight">115000</span>        PM                Product         <span class="csv-highlight">New York</span>
+EMP-005    Eve Davis         100000        <span class="csv-highlight">Lead Designer</span>    Design          Berlin</div>
+      <p style="font-size:0.82rem; color:var(--text-muted); margin-top:0.5rem;">
+        Only rows with actual changes · Changed cells highlighted in yellow · Available from Edit History
+      </p>
+    </div>
+
+    <div>
+      <h3 class="mb-1">❌ Error CSV Download</h3>
+      <div class="csv-preview">
+<span class="csv-header">Errors              User ID    Name          Compensation  Title       Dept         Location</span>
+<span class="csv-error">Row 2: Invalid comp  EMP-002    Bob Smith     abc           Designer    Design       New York</span>
+<span class="csv-error">Row 4: Unknown ID    EMP-999    Unknown       80000         Engineer    Eng          SF</span>
+<span class="csv-ok">OK                   EMP-001    Alice Johnson 120000        Sr. Eng     Engineering  San Francisco</span>
+<span class="csv-ok">OK                   EMP-003    Carol Williams 115000       PM          Product      London</span></div>
+      <p style="font-size:0.82rem; color:var(--text-muted); margin-top:0.5rem;">
+        "Errors" column prepended · Red rows = errors · Green = valid · Color-coded .xls download
+      </p>
+
+      <h3 class="mb-1 mt-2">Validation Rules</h3>
+      <div class="card card-danger">
+        <ul>
+          <li><strong>Header match:</strong> Column names and order must match template exactly</li>
+          <li><strong>User ID:</strong> Must be non-empty and exist in selected users list</li>
+          <li><strong>Compensation:</strong> Must be a valid positive number</li>
+          <li><strong>Required fields:</strong> Name, Title, Department, Location cannot be empty</li>
+          <li><strong>File size:</strong> Maximum 5 MB enforced on upload</li>
+          <li><strong>File format:</strong> Only .csv, .xls, .xlsx accepted</li>
+        </ul>
+      </div>
+
+      <h3 class="mb-1 mt-2">Error Recovery Options</h3>
+      <div class="card card-accent">
+        <ul>
+          <li><strong>"Continue with N valid rows"</strong> — excludes error rows, adjusts user count</li>
+          <li><strong>"Download error sheet"</strong> — get annotated file for offline correction</li>
+          <li><strong>"Re-upload corrected CSV"</strong> — clears state, auto-strips "Errors" column</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 9: Step 3 - Preview -->
+<!-- ============================================= -->
+<div class="slide" data-slide="9">
+  <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.25rem;">
+    <span class="step-badge">Step 3</span>
+    <h2 style="margin:0;">Preview Changes</h2>
+  </div>
+  <p class="subtitle mb-2">Two-phase preview within a single step for focused review.</p>
+
+  <div class="grid-2">
+    <div>
+      <div class="card card-accent mb-1">
+        <span class="tag tag-blue mb-1" style="display:inline-block;">Phase 1 — Review Changes</span>
+        <h4>Impact Statistics</h4>
+        <p style="font-size:0.88rem;">Users Affected · Fields Changed · Countries · Excluded Users — all at a glance.</p>
+
+        <h4 style="margin-top:0.75rem;">Fields Being Changed Table</h4>
+        <p style="font-size:0.88rem;">Each field, its operation, and value displayed. Sensitive fields marked with red "Sensitive" badge.</p>
+
+        <h4 style="margin-top:0.75rem;">Per-User Change Preview</h4>
+        <p style="font-size:0.88rem;">Expandable section showing old → new values for each user (filter method). Helps verify changes before committing.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="card card-danger mb-1">
+        <span class="tag tag-red mb-1" style="display:inline-block;">Phase 2 — Impact & Submit</span>
+        <h4>Affected Systems ⚠</h4>
+        <p style="font-size:0.88rem;">Based on which fields are being changed, shows exactly which downstream systems will be impacted.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.5rem;">
+          <span class="pill pill-blue">💰 Payroll</span>
+          <span class="pill pill-blue">🏥 Benefits & Insurance</span>
+          <span class="pill pill-blue">💻 Device Management</span>
+          <span class="pill pill-blue">📊 Cost Center Reporting</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.4rem;">
+          <span class="pill pill-purple">💬 Slack</span>
+          <span class="pill pill-purple">📧 Google Workspace</span>
+          <span class="pill pill-purple">🐙 GitHub</span>
+        </div>
+      </div>
+
+      <div class="card card-purple">
+        <h4>Confirmation Modal</h4>
+        <ul>
+          <li>User count summary</li>
+          <li>Sensitive fields → "This will be sent for approval" banner</li>
+          <li>Non-sensitive → "Changes will be applied directly" banner</li>
+          <li>📅 Schedule button — pick a future date</li>
+          <li>"I have reviewed the changes" checkbox</li>
+          <li>Dynamic CTA: "Submit for approval" / "Apply changes" / "Schedule changes"</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 10: Step 4 - Approval -->
+<!-- ============================================= -->
+<div class="slide" data-slide="10">
+  <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.25rem;">
+    <span class="step-badge">Step 4</span>
+    <h2 style="margin:0;">Approval & Application Status</h2>
+  </div>
+
+  <div class="grid-2">
+    <div>
+      <h3 class="mb-1">Conditional Approval Paths</h3>
+      <div class="card card-danger mb-1">
+        <h4>🔒 Sensitive Fields Changed</h4>
+        <p style="font-size:0.88rem;">Status: <strong>Pending Approval</strong>. Request sent to HR Admin. Admin can approve or reject. On approval, changes begin processing.</p>
+      </div>
+      <div class="card card-success mb-1">
+        <h4>✅ No Sensitive Fields</h4>
+        <p style="font-size:0.88rem;">Status: <strong>Processing</strong>. Changes apply directly with progress bar. No approval gate.</p>
+      </div>
+      <div class="card card-purple mb-1">
+        <h4>📅 Scheduled + Sensitive</h4>
+        <p style="font-size:0.88rem;">Status: <strong>Scheduled — Pending Approval</strong>. Both the scheduled date and approval gate apply. Changes won't run on the scheduled date until approved.</p>
+      </div>
+      <div class="card card-purple">
+        <h4>📅 Scheduled + Non-Sensitive</h4>
+        <p style="font-size:0.88rem;">Status: <strong>Scheduled</strong>. Changes will auto-apply on the scheduled date without approval.</p>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="mb-1">Processing & Error States</h3>
+
+      <div class="card card-accent mb-1">
+        <h4>⟳ Processing</h4>
+        <p style="font-size:0.88rem;">Live progress bar showing % complete. Option to <strong>cancel mid-processing</strong>.</p>
+      </div>
+      <div class="card card-amber mb-1">
+        <h4>⚠ Partial Failure</h4>
+        <p style="font-size:0.88rem;">~15% of users may fail (simulated). Shows "X of Y applied successfully". Options: <strong>Retry failed</strong> or <strong>Continue without failed</strong>.</p>
+      </div>
+      <div class="card card-danger mb-1">
+        <h4>✕ Rejected</h4>
+        <p style="font-size:0.88rem;">Approver rejected the request. Option to <strong>Edit and resubmit</strong>.</p>
+      </div>
+      <div class="card" style="border-left:4px solid #6B7280;">
+        <h4>⊘ Cancelled</h4>
+        <p style="font-size:0.88rem;">Processing cancelled mid-way. No changes applied. Option to edit and resubmit.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 11: Edit History -->
+<!-- ============================================= -->
+<div class="slide" data-slide="11">
+  <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.25rem;">
+    <span class="step-badge">Home</span>
+    <h2 style="margin:0;">Bulk Edit History — Audit Trail</h2>
+  </div>
+  <p class="subtitle mb-2">The landing page serves as a complete audit log of all bulk change requests.</p>
+
+  <div class="grid-2">
+    <div>
+      <h3 class="mb-1">History Table</h3>
+      <table class="data-table">
+        <thead>
+          <tr><th>#</th><th>Request ID</th><th>Created By</th><th>Date</th><th>Users</th><th>Fields</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>REQ-001</td><td>Admin</td><td>03/03/2026</td><td>45</td><td>Compensation, Title</td><td><span class="tag tag-green">Applied</span></td></tr>
+          <tr><td>2</td><td>REQ-002</td><td>Admin</td><td>03/02/2026</td><td>12</td><td>Department</td><td><span class="tag tag-amber">Pending</span></td></tr>
+          <tr><td>3</td><td>REQ-003</td><td>Admin</td><td>03/01/2026</td><td>8</td><td>Location, Work Mode</td><td><span class="tag tag-purple">Scheduled</span></td></tr>
+          <tr><td>4</td><td>REQ-004</td><td>Admin</td><td>02/28/2026</td><td>150</td><td>Compensation</td><td><span class="tag tag-red">Rejected</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="mb-1 mt-2">Status Badges</h3>
+      <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+        <span class="tag tag-green">Applied</span>
+        <span class="tag tag-green">Applied (Partial)</span>
+        <span class="tag tag-amber">Pending Approval</span>
+        <span class="tag tag-purple">Scheduled</span>
+        <span class="tag tag-red">Rejected</span>
+        <span class="tag tag-red">Cancelled</span>
+        <span class="tag" style="background:#F1F5F9; color:#64748B;">Reversed</span>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="mb-1">Per-Request Actions</h3>
+      <div class="card card-accent mb-1">
+        <h4>📥 Download Change Sheet</h4>
+        <p style="font-size:0.88rem;">Exports a styled .xls file showing only changed rows with modified cells highlighted in yellow. Works for both filter-based and CSV-based changes.</p>
+      </div>
+      <div class="card card-danger mb-1">
+        <h4>↩️ Reverse Changes</h4>
+        <p style="font-size:0.88rem;">Available for Applied / Applied (Partial) requests. <strong>Blocked for sensitive fields</strong> (compensation, currency, status) — these require a new manual change request to ensure proper audit trails.</p>
+      </div>
+      <div class="card card-accent">
+        <h4>+ New Bulk Change</h4>
+        <p style="font-size:0.88rem;">CTA to initiate a new bulk change flow. Resets all state and starts fresh at Step 1.</p>
+      </div>
+
+      <div class="card mt-1" style="border-left:4px solid var(--warning);">
+        <h4>Smart Field Display</h4>
+        <p style="font-size:0.88rem;">When 1-2 fields: show field names inline (e.g., "Compensation, Title"). When 3+: show "3 fields" to keep the table compact.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 12: Comprehensive Edge Cases -->
+<!-- ============================================= -->
+<div class="slide" data-slide="12">
+  <p class="section-label">Robustness</p>
+  <h2>Comprehensive Edge Cases Handled</h2>
+
+  <div class="grid-2 mt-1">
+    <div>
+      <h3 class="mb-1">Step 1: User Selection</h3>
+      <div class="edge-case-row"><span class="edge-icon block">!</span><div><strong>Max 500 users</strong> — hard limit with warning message</div></div>
+      <div class="edge-case-row"><span class="edge-icon guard">✓</span><div><strong>Duplicate prevention</strong> — "Already added" label inline</div></div>
+      <div class="edge-case-row"><span class="edge-icon info">i</span><div><strong>Empty states</strong> — contextual messages for no search results, no filter matches</div></div>
+      <div class="edge-case-row"><span class="edge-icon guard">✓</span><div><strong>Smart CTA</strong> — disables when all filtered users already added</div></div>
+      <div class="edge-case-row"><span class="edge-icon guard">✓</span><div><strong>Filters preserved</strong> — not cleared after applying</div></div>
+
+      <h3 class="mb-1 mt-2">Step 3: Preview</h3>
+      <div class="edge-case-row"><span class="edge-icon block">!</span><div><strong>Zero edits guard</strong> — redirects to Step 2 if no field edits in filter mode</div></div>
+      <div class="edge-case-row"><span class="edge-icon block">!</span><div><strong>Zero users after exclusions</strong> — submit button disabled</div></div>
+      <div class="edge-case-row"><span class="edge-icon info">i</span><div><strong>CSV no changes</strong> — "No field changes detected" message</div></div>
+      <div class="edge-case-row"><span class="edge-icon guard">✓</span><div><strong>Schedule date</strong> — min today, clear option, different paths for sensitive vs non-sensitive</div></div>
+    </div>
+
+    <div>
+      <h3 class="mb-1">Step 2: Field Selection & CSV</h3>
+      <div class="edge-case-row"><span class="edge-icon warn">⚠</span><div><strong>Currency conflict</strong> — blocks absolute ops when users have mixed currencies</div></div>
+      <div class="edge-case-row"><span class="edge-icon warn">⚠</span><div><strong>Cross-country work mode</strong> — warns for multi-country groups</div></div>
+      <div class="edge-case-row"><span class="edge-icon warn">⚠</span><div><strong>Duplicate field edit</strong> — warns when same field being added again</div></div>
+      <div class="edge-case-row"><span class="edge-icon block">!</span><div><strong>File size limit</strong> — 5 MB max, rejected with clear error</div></div>
+      <div class="edge-case-row"><span class="edge-icon block">!</span><div><strong>Invalid file format</strong> — only .csv, .xls, .xlsx accepted</div></div>
+      <div class="edge-case-row"><span class="edge-icon guard">✓</span><div><strong>Partial CSV errors</strong> — continue with valid rows, exclude errors</div></div>
+      <div class="edge-case-row"><span class="edge-icon guard">✓</span><div><strong>Auto-strip "Errors" column</strong> on re-upload of corrected file</div></div>
+
+      <h3 class="mb-1 mt-2">Step 4: Application</h3>
+      <div class="edge-case-row"><span class="edge-icon warn">⚠</span><div><strong>Partial failure</strong> — retry failed or continue without</div></div>
+      <div class="edge-case-row"><span class="edge-icon guard">✓</span><div><strong>Cancel mid-processing</strong> — stops immediately, no changes applied</div></div>
+      <div class="edge-case-row"><span class="edge-icon block">!</span><div><strong>Reversal blocked</strong> for sensitive fields (compensation, currency, status)</div></div>
+      <div class="edge-case-row"><span class="edge-icon guard">✓</span><div><strong>Failed count resets</strong> on retry to prevent cumulative errors</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 13: Scheduling Feature -->
+<!-- ============================================= -->
+<div class="slide" data-slide="13">
+  <p class="section-label">Feature Deep-Dive</p>
+  <h2>Scheduling & Approval Matrix</h2>
+
+  <div class="grid-2 mt-2">
+    <div>
+      <h3 class="mb-1">How Scheduling Works</h3>
+      <p style="font-size:0.92rem; margin-bottom:1rem;">
+        In the confirmation modal, a 📅 <strong>Schedule</strong> button (inspired by Blinkit's delivery scheduling UX) lets users pick a future effective date. The scheduled date appears as a separate highlighted banner with a clear option.
+      </p>
+
+      <div class="card card-purple mb-1">
+        <h4>UX Flow</h4>
+        <ol style="padding-left:1.25rem;">
+          <li style="margin-bottom:0.3rem;">User clicks "Submit for approval" or "Confirm and apply"</li>
+          <li style="margin-bottom:0.3rem;">Confirmation modal opens with 📅 Schedule button in header row</li>
+          <li style="margin-bottom:0.3rem;">Clicking Schedule opens native date picker (min: today)</li>
+          <li style="margin-bottom:0.3rem;">Selected date shows as purple banner: "📅 Scheduled for Tue, Mar 4" with Clear option</li>
+          <li>CTA remains contextual: "Submit for approval" (sensitive) or "Schedule changes" (non-sensitive)</li>
+        </ol>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="mb-1">Decision Matrix</h3>
+      <table class="data-table">
+        <thead>
+          <tr><th>Sensitive Fields?</th><th>Scheduled?</th><th>Status</th><th>What Happens</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>No</td><td>No</td><td><span class="tag tag-green" style="font-size:0.7rem;">Processing</span></td><td>Applies immediately</td></tr>
+          <tr><td>No</td><td>Yes</td><td><span class="tag tag-purple" style="font-size:0.7rem;">Scheduled</span></td><td>Auto-applies on date</td></tr>
+          <tr><td>Yes</td><td>No</td><td><span class="tag tag-amber" style="font-size:0.7rem;">Pending</span></td><td>Needs approval first</td></tr>
+          <tr><td>Yes</td><td>Yes</td><td><span class="tag tag-purple" style="font-size:0.7rem;">Sched + Pending</span></td><td>Needs approval, then applies on date</td></tr>
+        </tbody>
+      </table>
+
+      <div class="card card-danger mt-1">
+        <h4>Key Principle</h4>
+        <p style="font-size:0.88rem;">
+          Scheduling never bypasses approval. If sensitive fields are being modified, approval is <strong>always</strong> required regardless of when the changes are scheduled to take effect. This ensures compliance and audit integrity.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 14: Question 3 - Data Propagation -->
+<!-- ============================================= -->
+<div class="slide dark" data-slide="14">
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+    <p class="section-label" style="margin-bottom:1rem;">Question 3</p>
+    <h1 style="font-size:2.8rem;">Challenges of Data<br/>Propagation</h1>
+    <p class="subtitle" style="max-width:650px; margin-top:1rem;">
+      How modified data flows from Rippling's system of record to first-party products and third-party integrations — and the challenges that arise at scale.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 15: Propagation - Challenges -->
+<!-- ============================================= -->
+<div class="slide" data-slide="15">
+  <p class="section-label">Question 3 — Challenges</p>
+  <h2>Data Propagation Challenges</h2>
+
+  <div class="grid-2 mt-2">
+    <div>
+      <h3 class="mb-1">First-Party Systems</h3>
+
+      <div class="card card-accent mb-1">
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+          <span class="challenge-num" style="background:#DBEAFE; color:#1E40AF;">1</span>
+          <h4 style="margin:0;">Atomicity & Consistency</h4>
+        </div>
+        <p style="font-size:0.88rem;">When changing compensation for 200 employees, Payroll and Benefits must <strong>both</strong> receive the update. A partial sync (Payroll updated but not Benefits) creates data inconsistency and compliance risk.</p>
+      </div>
+
+      <div class="card card-accent mb-1">
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+          <span class="challenge-num" style="background:#DBEAFE; color:#1E40AF;">2</span>
+          <h4 style="margin:0;">Ordering & Dependencies</h4>
+        </div>
+        <p style="font-size:0.88rem;">Status changes may need to propagate to Payroll <strong>before</strong> Device Management (to deactivate payroll before reclaiming devices). Bulk changes amplify ordering complexity.</p>
+      </div>
+
+      <div class="card card-accent">
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+          <span class="challenge-num" style="background:#DBEAFE; color:#1E40AF;">3</span>
+          <h4 style="margin:0;">Payroll Cut-Off Timing</h4>
+        </div>
+        <p style="font-size:0.88rem;">Bulk compensation changes near payroll processing deadlines risk either double-payment or missed payments. The scheduling feature helps but doesn't eliminate the risk.</p>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="mb-1">Third-Party Integrations</h3>
+
+      <div class="card card-purple mb-1">
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+          <span class="challenge-num" style="background:#EDE9FE; color:#7C3AED;">4</span>
+          <h4 style="margin:0;">Rate Limiting & Throttling</h4>
+        </div>
+        <p style="font-size:0.88rem;">Updating 500 users' titles on Slack, Google Workspace, and GitHub simultaneously means 1,500+ API calls. Third-party rate limits can cause sync delays and partial failures.</p>
+      </div>
+
+      <div class="card card-purple mb-1">
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+          <span class="challenge-num" style="background:#EDE9FE; color:#7C3AED;">5</span>
+          <h4 style="margin:0;">Eventual Consistency</h4>
+        </div>
+        <p style="font-size:0.88rem;">Different third-party APIs have different propagation speeds. Slack may update in seconds while Google Workspace takes minutes. Users may see inconsistent data across platforms during the sync window.</p>
+      </div>
+
+      <div class="card card-purple">
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+          <span class="challenge-num" style="background:#EDE9FE; color:#7C3AED;">6</span>
+          <h4 style="margin:0;">API Failures & Rollbacks</h4>
+        </div>
+        <p style="font-size:0.88rem;">A third-party API outage (e.g., GitHub is down) shouldn't block the entire bulk change. But partial propagation creates an inconsistent state that's hard to reconcile later.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 16: Propagation - Solutions -->
+<!-- ============================================= -->
+<div class="slide" data-slide="16">
+  <p class="section-label">Question 3 — Solutions</p>
+  <h2>How I Would Address These Challenges</h2>
+
+  <div class="grid-2 mt-2">
+    <div>
+      <div class="card card-success mb-1">
+        <h4>🔄 Async Job Queue with Retry</h4>
+        <p style="font-size:0.88rem;">Each downstream sync is an independent job on a queue (e.g., SQS/Kafka). Failed jobs retry with exponential backoff. This decouples the core change from propagation and handles third-party rate limits gracefully.</p>
+      </div>
+
+      <div class="card card-success mb-1">
+        <h4>📊 Per-System Sync Status Dashboard</h4>
+        <p style="font-size:0.88rem;">Instead of a binary "applied/failed", show admins the sync status per downstream system: "Payroll ✅ · Benefits ✅ · Slack ⟳ · GitHub ❌ retry in 5m". This is already reflected in our "Affected Systems" preview.</p>
+      </div>
+
+      <div class="card card-success">
+        <h4>🔀 Dependency Graph Execution</h4>
+        <p style="font-size:0.88rem;">Define a DAG of system dependencies (e.g., Payroll → Benefits → Device Management). Process in topological order. If a parent fails, child syncs are held until the parent succeeds.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="card card-success mb-1">
+        <h4>🛡️ Idempotent Operations</h4>
+        <p style="font-size:0.88rem;">Every sync operation must be idempotent — safe to retry without side effects. Include a change-request-ID in every API call so downstream systems can deduplicate.</p>
+      </div>
+
+      <div class="card card-success mb-1">
+        <h4>📅 Scheduling as a Buffer</h4>
+        <p style="font-size:0.88rem;">The scheduling feature isn't just for convenience — it enables <strong>batch processing during off-peak hours</strong>, reducing rate-limit pressure and ensuring changes land before payroll cut-offs.</p>
+      </div>
+
+      <div class="card card-success">
+        <h4>↩️ Selective Rollback</h4>
+        <p style="font-size:0.88rem;">Our "Reverse Changes" feature in Edit History handles the product layer. At the infrastructure level, maintain a change log per system so rollbacks can target specific systems without affecting others that already succeeded.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 17: System Impact Mapping -->
+<!-- ============================================= -->
+<div class="slide" data-slide="17">
+  <p class="section-label">Question 3 — System Impact Mapping</p>
+  <h2>Field → System Impact Matrix</h2>
+  <p class="subtitle mb-2">Every field change maps to specific downstream systems. This mapping drives the "Affected Systems" preview in the product.</p>
+
+  <table class="data-table">
+    <thead>
+      <tr><th>Field Changed</th><th>First-Party Systems</th><th>Third-Party Integrations</th><th>Risk Level</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Compensation</strong></td>
+        <td><span class="pill pill-blue">💰 Payroll</span> <span class="pill pill-blue">🏥 Benefits</span></td>
+        <td>—</td>
+        <td><span class="tag tag-red">High</span></td>
+      </tr>
+      <tr>
+        <td><strong>Status</strong></td>
+        <td><span class="pill pill-blue">💰 Payroll</span> <span class="pill pill-blue">🏥 Benefits</span> <span class="pill pill-blue">💻 Devices</span></td>
+        <td><span class="pill pill-purple">💬 Slack</span> <span class="pill pill-purple">📧 Google</span> <span class="pill pill-purple">🐙 GitHub</span></td>
+        <td><span class="tag tag-red">High</span></td>
+      </tr>
+      <tr>
+        <td><strong>Title</strong></td>
+        <td>—</td>
+        <td><span class="pill pill-purple">💬 Slack</span> <span class="pill pill-purple">📧 Google</span> <span class="pill pill-purple">🐙 GitHub</span></td>
+        <td><span class="tag tag-green">Low</span></td>
+      </tr>
+      <tr>
+        <td><strong>Department</strong></td>
+        <td><span class="pill pill-blue">📊 Cost Center</span></td>
+        <td><span class="pill pill-purple">💬 Slack</span> <span class="pill pill-purple">📧 Google</span></td>
+        <td><span class="tag tag-amber">Medium</span></td>
+      </tr>
+      <tr>
+        <td><strong>Location</strong></td>
+        <td><span class="pill pill-blue">💰 Payroll</span> <span class="pill pill-blue">🏥 Benefits</span> <span class="pill pill-blue">💻 Devices</span></td>
+        <td>—</td>
+        <td><span class="tag tag-amber">Medium</span></td>
+      </tr>
+      <tr>
+        <td><strong>Manager / Team</strong></td>
+        <td>—</td>
+        <td><span class="pill pill-purple">💬 Slack</span> <span class="pill pill-purple">📧 Google</span></td>
+        <td><span class="tag tag-green">Low</span></td>
+      </tr>
+      <tr>
+        <td><strong>Work Mode</strong></td>
+        <td><span class="pill pill-blue">💻 Devices</span></td>
+        <td>—</td>
+        <td><span class="tag tag-green">Low</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="card card-accent mt-2" style="max-width:800px;">
+    <h4>Why This Matters in the Product</h4>
+    <p style="font-size:0.88rem;">
+      By showing administrators <strong>exactly which systems will be affected</strong> before they submit, we reduce surprise, build confidence, and enable informed decision-making. The admin can choose to schedule the change for off-hours if many critical systems are involved.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 18: AI Prompts Used -->
+<!-- ============================================= -->
+<div class="slide" data-slide="18">
+  <p class="section-label">Process</p>
+  <h2>AI-Assisted Prototyping — Prompt Examples</h2>
+  <p class="subtitle mb-2">The prototype was built iteratively using AI (Cursor + Claude). Here are representative prompts that shaped the solution.</p>
+
+  <div class="grid-2">
+    <div>
+      <div class="card mb-1" style="border-left:4px solid #2563EB;">
+        <h4 style="color:#2563EB;">Core Flow Design</h4>
+        <p style="font-size:0.85rem; font-style:italic; color:var(--text-muted);">"Create a multi-step wizard for bulk employee attribute updates. Step 1: user selection via search and filters. Step 2: field selection with operations. Step 3: preview. Step 4: approval status."</p>
+      </div>
+      <div class="card mb-1" style="border-left:4px solid #059669;">
+        <h4 style="color:#059669;">Edge Case Refinement</h4>
+        <p style="font-size:0.85rem; font-style:italic; color:var(--text-muted);">"Review the entire code & product flow & suggest areas of improvement or edge cases which are missed. Go through the problem statement to be 100% sure."</p>
+      </div>
+      <div class="card mb-1" style="border-left:4px solid #D97706;">
+        <h4 style="color:#D97706;">Approval Logic</h4>
+        <p style="font-size:0.85rem; font-style:italic; color:var(--text-muted);">"Make the flow so that approval is only triggered when certain fields are changed like Salary or other critical fields. Handle the edge case that changes might partially fail."</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="card mb-1" style="border-left:4px solid #7C3AED;">
+        <h4 style="color:#7C3AED;">UX Iteration</h4>
+        <p style="font-size:0.85rem; font-style:italic; color:var(--text-muted);">"Re-think the design of the Preview page — there's too much information and focus isn't going to all components. Affected Systems is not getting highlighted enough."</p>
+      </div>
+      <div class="card mb-1" style="border-left:4px solid #DC2626;">
+        <h4 style="color:#DC2626;">Design Consistency</h4>
+        <p style="font-size:0.85rem; font-style:italic; color:var(--text-muted);">"Follow the design principle as in [Blinkit Screenshot]. Show Schedule button on top separately." — Using real product screenshots as UX references.</p>
+      </div>
+      <div class="card" style="border-left:4px solid #2563EB;">
+        <h4 style="color:#2563EB;">Feature Addition</h4>
+        <p style="font-size:0.85rem; font-style:italic; color:var(--text-muted);">"Even if I am scheduling changes for a later date, if sensitive field is to be changed, it still has to go through approval process." — Ensuring business logic correctness.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-accent mt-1" style="max-width:100%;">
+    <h4>Iteration Approach</h4>
+    <p style="font-size:0.88rem;">Started with core flow → added edge cases → refined UX based on visual feedback → added features (scheduling, cancellation) → ensured design consistency across pages. Each prompt built on the previous state of the prototype.</p>
+  </div>
+</div>
+
+<!-- ============================================= -->
+<!-- SLIDE 19: Summary -->
+<!-- ============================================= -->
+<div class="slide dark" data-slide="19">
+  <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+    <p class="section-label" style="margin-bottom:1rem;">Summary</p>
+    <h1 style="font-size:2.6rem; margin-bottom:1.5rem;">Key Takeaways</h1>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; max-width:900px;">
+      <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+        <span style="font-size:1.5rem;">🔀</span>
+        <div>
+          <h3 style="color:#60A5FA; margin-bottom:0.25rem;">Hybrid Approach</h3>
+          <p style="font-size:0.9rem; color:#94A3B8;">Filter + Rules for uniform changes. CSV for per-user values. One flow, two paths.</p>
+        </div>
+      </div>
+      <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+        <span style="font-size:1.5rem;">🛡️</span>
+        <div>
+          <h3 style="color:#60A5FA; margin-bottom:0.25rem;">Smart Approval</h3>
+          <p style="font-size:0.9rem; color:#94A3B8;">Only sensitive fields require approval. Non-sensitive changes apply directly. Scheduling never bypasses approval.</p>
+        </div>
+      </div>
+      <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+        <span style="font-size:1.5rem;">⚠️</span>
+        <div>
+          <h3 style="color:#60A5FA; margin-bottom:0.25rem;">20+ Edge Cases</h3>
+          <p style="font-size:0.9rem; color:#94A3B8;">From currency conflicts to partial failures, file validation to processing cancellation — every path is handled.</p>
+        </div>
+      </div>
+      <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+        <span style="font-size:1.5rem;">🔗</span>
+        <div>
+          <h3 style="color:#60A5FA; margin-bottom:0.25rem;">Propagation Aware</h3>
+          <p style="font-size:0.9rem; color:#94A3B8;">Field → System mapping shown before submit. Async queues, retry logic, and dependency ordering for reliable sync.</p>
+        </div>
+      </div>
+      <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+        <span style="font-size:1.5rem;">📅</span>
+        <div>
+          <h3 style="color:#60A5FA; margin-bottom:0.25rem;">Scheduling</h3>
+          <p style="font-size:0.9rem; color:#94A3B8;">Schedule changes for future dates. Approval + scheduling work independently. Off-peak processing reduces system load.</p>
+        </div>
+      </div>
+      <div style="display:flex; gap:0.75rem; align-items:flex-start;">
+        <span style="font-size:1.5rem;">📋</span>
+        <div>
+          <h3 style="color:#60A5FA; margin-bottom:0.25rem;">Full Audit Trail</h3>
+          <p style="font-size:0.9rem; color:#94A3B8;">Every request tracked. Change sheets downloadable. Reversals supported (with guardrails for sensitive fields).</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:2.5rem; padding-top:1.5rem; border-top:1px solid rgba(255,255,255,0.1);">
+      <p style="font-size:1.1rem; color:#94A3B8;">
+        The working prototype is available for a live demo walkthrough.
+      </p>
+    </div>
+  </div>
+</div>
+
+</div><!-- /slide-container -->
+
+<!-- Navigation Bar -->
+<div class="nav-bar">
+  <button id="prevBtn" onclick="navigate(-1)" disabled>← Prev</button>
+  <span class="page-info" id="pageInfo">1 / 19</span>
+  <button id="nextBtn" onclick="navigate(1)">Next →</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+
+  function showSlide(idx) {
+    slides.forEach(s => s.classList.remove('active'));
+    slides[idx].classList.add('active');
+    current = idx;
+    document.getElementById('pageInfo').textContent = `${idx + 1} / ${slides.length}`;
+    document.getElementById('prevBtn').disabled = idx === 0;
+    document.getElementById('nextBtn').disabled = idx === slides.length - 1;
+  }
+
+  function navigate(dir) {
+    const next = current + dir;
+    if (next >= 0 && next < slides.length) showSlide(next);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); navigate(1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); navigate(-1); }
+  });
+
+  showSlide(0);
+</script>
+
+</body>
+</html>

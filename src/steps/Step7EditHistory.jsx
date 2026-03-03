@@ -46,6 +46,10 @@ function getOriginalValue(user, fieldId) {
   return '';
 }
 
+function esc(str) {
+  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function generateChangeSheet(entry) {
   const users = entry.users || [];
   const edits = entry.fieldEdits || [];
@@ -81,13 +85,13 @@ function generateChangeSheet(entry) {
     });
 
     let html = '<html><head><meta charset="UTF-8"></head><body><table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px">';
-    html += '<tr>' + headers.map((h) => `<th style="background:#f3f4f6;font-weight:bold;padding:6px 10px">${h}</th>`).join('') + '</tr>';
+    html += '<tr>' + headers.map((h) => `<th style="background:#f3f4f6;font-weight:bold;padding:6px 10px">${esc(h)}</th>`).join('') + '</tr>';
     changedRows.forEach(({ cols, changedCols }) => {
       html += '<tr>' + cols.map((c, ci) => {
         const style = changedCols.has(ci)
           ? 'background:#DBEAFE;color:#1E40AF;font-weight:600;padding:5px 10px'
           : 'padding:5px 10px';
-        return `<td style="${style}">${String(c || '')}</td>`;
+        return `<td style="${style}">${esc(c)}</td>`;
       }).join('') + '</tr>';
     });
     html += '</table></body></html>';
@@ -112,13 +116,13 @@ function generateChangeSheet(entry) {
   });
 
   let html = '<html><head><meta charset="UTF-8"></head><body><table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px">';
-  html += '<tr>' + allHeaders.map((h) => `<th style="background:#f3f4f6;font-weight:bold;padding:6px 10px">${h}</th>`).join('') + '</tr>';
+  html += '<tr>' + allHeaders.map((h) => `<th style="background:#f3f4f6;font-weight:bold;padding:6px 10px">${esc(h)}</th>`).join('') + '</tr>';
   changedRows.forEach(({ row, changedCols }) => {
     html += '<tr>' + row.map((c, ci) => {
       const style = changedCols.has(ci)
         ? 'background:#DBEAFE;color:#1E40AF;font-weight:600;padding:5px 10px'
         : 'padding:5px 10px';
-      return `<td style="${style}">${String(c || '')}</td>`;
+      return `<td style="${style}">${esc(c)}</td>`;
     }).join('') + '</tr>';
   });
   html += '</table></body></html>';
@@ -265,13 +269,18 @@ export function Step7EditHistory() {
                         <span
                           className={`badge ${
                             h.status === 'Applied' || h.status === 'Applied (Partial)' ? 'badge--success'
-                              : h.status === 'Rejected' ? 'badge--danger'
-                              : h.status === 'Reversed' ? 'badge--danger'
+                              : h.status === 'Rejected' || h.status === 'Reversed' || h.status === 'Cancelled' ? 'badge--danger'
+                              : h.status === 'Scheduled' || h.status === 'Scheduled – Pending Approval' ? 'badge--scheduled'
                               : 'badge--muted'
                           }`}
                         >
-                          {h.status}
+                          {h.status === 'Scheduled – Pending Approval' ? 'Pending Approval' : h.status}
                         </span>
+                        {(h.status === 'Scheduled' || h.status === 'Scheduled – Pending Approval') && h.scheduledDate && (
+                          <div style={{ fontSize: '0.72rem', color: '#7C3AED', marginTop: '0.2rem', whiteSpace: 'nowrap' }}>
+                            📅 {new Date(h.scheduledDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </div>
+                        )}
                       </td>
                       <td style={{ position: 'relative', overflow: 'visible' }}>
                         <button

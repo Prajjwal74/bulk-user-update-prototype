@@ -158,8 +158,8 @@ export function Step1UserSelection() {
     addFilter,
     updateFilter,
     removeFilter,
-    resetFilters,
     filterUserCount,
+    filterNewCount,
     applyFilterSelection,
     setCurrentStep,
     MOCK_USERS,
@@ -215,7 +215,6 @@ export function Step1UserSelection() {
 
   const handleApplyFilters = () => {
     applyFilterSelection();
-    resetFilters();
   };
 
   const canContinue = selectedUsers.length > 0;
@@ -427,10 +426,12 @@ export function Step1UserSelection() {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={filterUserCount === 0}
+                  disabled={filterUserCount === 0 || filterNewCount === 0}
                   onClick={handleApplyFilters}
                 >
-                  Add users to the list
+                  {filterNewCount === 0 && filterUserCount > 0
+                    ? 'All users already added'
+                    : `Add ${filterNewCount} user(s) to the list`}
                 </button>
               </div>
             </div>
