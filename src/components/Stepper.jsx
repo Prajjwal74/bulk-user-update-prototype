@@ -2,7 +2,7 @@ import { useAppState } from '../context/AppState';
 import './Stepper.css';
 
 export function Stepper() {
-  const { STEP_LABELS, currentStep, goToStep, submitted } = useAppState();
+  const { STEP_LABELS, currentStep, goToStep, submitted, setCurrentStep } = useAppState();
 
   const getStepState = (stepIndex) => {
     const step = stepIndex + 1;
@@ -13,14 +13,22 @@ export function Stepper() {
 
   const isClickable = (stepIndex) => {
     const step = stepIndex + 1;
-    if (submitted && step >= 1 && step <= 5) return false;
-    if (step === 7) return true;
+    if (submitted && step >= 1 && step <= 4) return false;
     return step <= currentStep;
   };
 
   return (
     <nav className="stepper" aria-label="Bulk update steps">
-      <div className="stepper-heading">Bulk Change</div>
+      <div className="stepper-heading" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <span
+          onClick={() => setCurrentStep(0)}
+          style={{ cursor: 'pointer', fontSize: '1rem', lineHeight: 1, color: 'var(--text-muted)' }}
+          title="Back to Edit History"
+        >
+          ←
+        </span>
+        Bulk Change
+      </div>
       <ul className="stepper-list">
         {STEP_LABELS.map((label, index) => {
           const step = index + 1;

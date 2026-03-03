@@ -4,6 +4,18 @@
   background: var(--bg);
 }
 
+.app-layout--full {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.app-layout--full .app-main {
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+
 .app-main {
   flex: 1;
   overflow: auto;
@@ -702,4 +714,35 @@
 .btn-icon-download:hover {
   background: var(--hover-bg);
   border-color: var(--text-muted);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modal-content {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }

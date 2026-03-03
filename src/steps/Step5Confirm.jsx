@@ -54,7 +54,7 @@ export function Step5Confirm() {
       </div>
 
       <div className="step-actions">
-        <button type="button" className="btn btn-secondary" onClick={() => goToStep(4)} disabled={submitting}>
+        <button type="button" className="btn btn-secondary" onClick={() => goToStep(3)} disabled={submitting}>
           Cancel
         </button>
         <button

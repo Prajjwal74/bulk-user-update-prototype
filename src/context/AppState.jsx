@@ -1,13 +1,10 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 
 const STEP_LABELS = [
   'User Selection',
   'Field Selection & Edit',
-  'Validation & Errors',
   'Preview Changes',
-  'Confirm & Submit',
   'Approval & Notify',
-  'Edit History',
 ];
 
 const defaultUser = (id, name, role, department, country) => ({
@@ -131,7 +128,29 @@ function hasAnyCompleteFilter(filters) {
 const AppStateContext = createContext(null);
 
 export function AppStateProvider({ children }) {
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStepRaw] = useState(0);
+  const skipPushRef = useRef(false);
+
+  const setCurrentStep = useCallback((step) => {
+    setCurrentStepRaw(step);
+    if (!skipPushRef.current) {
+      window.history.pushState({ step }, '', `#step-${step}`);
+    }
+    skipPushRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    window.history.replaceState({ step: 0 }, '', '#step-0');
+
+    const handlePopState = (e) => {
+      const step = e.state?.step ?? 0;
+      skipPushRef.current = true;
+      setCurrentStepRaw(step);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const [submitted, setSubmitted] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -142,6 +161,7 @@ export function AppStateProvider({ children }) {
   const [fieldEdits, setFieldEdits] = useState([]);
   const [csvFile, setCsvFile] = useState(null);
   const [csvValidation, setCsvValidation] = useState(null);
+  const [parsedCsvData, setParsedCsvData] = useState(null);
   const [validationErrors, setValidationErrors] = useState([]);
   const [excludedUserIds, setExcludedUserIds] = useState([]);
   const [confirmChecked, setConfirmChecked] = useState(false);
@@ -150,9 +170,29 @@ export function AppStateProvider({ children }) {
   const [history, setHistory] = useState([]);
 
   const goToStep = useCallback((step) => {
-    if (submitted && step >= 1 && step <= 5) return;
+    if (submitted && step >= 1 && step <= 4) return;
     setCurrentStep(step);
   }, [submitted]);
+
+  const startNewBulkChange = useCallback(() => {
+    setCurrentStep(1);
+    setSubmitted(false);
+    setSelectedUsers([]);
+    setSearchQuery('');
+    setSearchResults([]);
+    setFilters([]);
+    setFilterUserCount(0);
+    setEditMethod(null);
+    setFieldEdits([]);
+    setCsvFile(null);
+    setCsvValidation(null);
+    setParsedCsvData(null);
+    setValidationErrors([]);
+    setExcludedUserIds([]);
+    setConfirmChecked(false);
+    setRequestId(null);
+    setApprovalStatus(null);
+  }, []);
 
   const addUser = useCallback((user) => {
     setSelectedUsers((prev) => {
@@ -205,25 +245,62 @@ export function AppStateProvider({ children }) {
     });
   }, [filters]);
 
-  const submitForApproval = useCallback(() => {
+  const CRITICAL_FIELDS = ['compensation', 'currency', 'status'];
+  const CRITICAL_LABELS = ['Compensation', 'Pay Currency', 'Status'];
+
+  const submitForApproval = useCallback((opts = {}) => {
+    const { changedFieldNames = [], requiresApproval = true } = opts;
+
     const id = `REQ-${Date.now()}`;
     setRequestId(id);
-    setApprovalStatus('pending');
     setSubmitted(true);
-    setHistory((prev) => [
-      ...prev,
-      {
-        requestId: id,
-        submittedBy: 'Current User',
-        date: new Date().toISOString(),
-        userCount: selectedUsers.length - excludedUserIds.length,
-        fieldsChanged: fieldEdits.map((e) => e.field).join(', '),
-        status: 'pending',
-        statusDetail: 'Pending approval',
-      },
-    ]);
-    setCurrentStep(6);
-  }, [selectedUsers, excludedUserIds, fieldEdits]);
+
+    const fieldsStr = changedFieldNames.length > 0
+      ? changedFieldNames.join(', ')
+      : fieldEdits.map((e) => e.field).join(', ') || '—';
+
+    const effCount = selectedUsers.length - excludedUserIds.length;
+
+    if (requiresApproval) {
+      setApprovalStatus('pending');
+      setHistory((prev) => [
+        ...prev,
+        {
+          requestId: id,
+          submittedBy: 'Current User',
+          date: new Date().toISOString(),
+          userCount: effCount,
+          fieldsChanged: fieldsStr,
+          status: 'pending',
+          statusDetail: 'Pending approval — critical fields changed',
+          users: selectedUsers.filter((u) => !excludedUserIds.includes(u.id)),
+          fieldEdits: [...fieldEdits],
+          editMethod,
+          parsedCsvData,
+        },
+      ]);
+      setCurrentStep(4);
+    } else {
+      setApprovalStatus('processing');
+      setHistory((prev) => [
+        ...prev,
+        {
+          requestId: id,
+          submittedBy: 'Current User',
+          date: new Date().toISOString(),
+          userCount: effCount,
+          fieldsChanged: fieldsStr,
+          status: 'Processing',
+          statusDetail: 'Applying changes…',
+          users: selectedUsers.filter((u) => !excludedUserIds.includes(u.id)),
+          fieldEdits: [...fieldEdits],
+          editMethod,
+          parsedCsvData,
+        },
+      ]);
+      setCurrentStep(4);
+    }
+  }, [selectedUsers, excludedUserIds, fieldEdits, editMethod, parsedCsvData]);
 
   const effectiveUserCount = selectedUsers.filter((u) => !excludedUserIds.includes(u.id)).length;
 
@@ -260,6 +337,8 @@ export function AppStateProvider({ children }) {
         setCsvFile,
         csvValidation,
         setCsvValidation,
+        parsedCsvData,
+        setParsedCsvData,
         validationErrors,
         setValidationErrors,
         excludedUserIds,
@@ -272,8 +351,11 @@ export function AppStateProvider({ children }) {
         history,
         setHistory,
         submitForApproval,
+        startNewBulkChange,
         effectiveUserCount,
         MOCK_USERS,
+        CRITICAL_FIELDS,
+        CRITICAL_LABELS,
       }}
     >
       {children}

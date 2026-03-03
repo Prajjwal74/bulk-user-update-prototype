@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useAppState } from '../context/AppState';
+import * as XLSX from 'xlsx';
 
 const COUNTRY_CURRENCY = {
   USA: 'USD', India: 'INR', UK: 'GBP', Canada: 'CAD', Australia: 'AUD',
@@ -47,11 +48,15 @@ export function Step2FieldSelection() {
     setCsvFile,
     csvValidation,
     setCsvValidation,
+    parsedCsvData,
+    setParsedCsvData,
     setValidationErrors,
     setCurrentStep,
     goToStep,
     selectedUsers,
   } = useAppState();
+
+  const csvInputRef = useRef(null);
 
   const [newField, setNewField] = useState('');
   const [newOp, setNewOp] = useState('change_to');
@@ -137,22 +142,32 @@ export function Step2FieldSelection() {
 
   const isBlocked = activeConflict?.severity === 'error';
 
+  const isStrictNumber = (v) => /^-?\d+(\.\d+)?$/.test(v.trim());
+  const isStrictCurrency = (v) => /^\$?[\d,]+(\.\d{1,2})?$/.test(v.trim().replace(/\s/g, ''));
+
   const validateValue = (fieldId, op, value) => {
     if (!needsValue(op)) return '';
     const f = FIELDS.find((x) => x.id === fieldId);
     if (!f || !value) return '';
-    if (f.type === 'currency' && (op.includes('increase') || op.includes('decrease'))) {
-      const n = parseFloat(value);
-      if (isNaN(n) || n < 0) return 'Enter a valid positive number.';
-    }
+
     if (f.type === 'currency' && op === 'change_to') {
-      const n = parseFloat(String(value).replace(/[$,]/g, ''));
-      if (isNaN(n) || n < 0) return 'Enter a valid amount.';
+      if (!isStrictCurrency(value)) return 'Enter a valid amount (numbers only, e.g. 50000 or $50,000).';
+      const n = parseFloat(value.replace(/[$,]/g, ''));
+      if (n < 0) return 'Amount cannot be negative.';
     }
-    if (f.id === 'compensation' && op.includes('pct')) {
+
+    if (f.type === 'currency' && (op === 'increase_by' || op === 'decrease_by')) {
+      if (!isStrictNumber(value)) return 'Enter a valid number (digits only, e.g. 5000).';
       const n = parseFloat(value);
-      if (isNaN(n) || n < 0 || n > 100) return 'Enter a percentage between 0 and 100.';
+      if (n <= 0) return 'Amount must be greater than 0.';
     }
+
+    if (f.id === 'compensation' && (op === 'increase_pct' || op === 'decrease_pct')) {
+      if (!isStrictNumber(value)) return 'Enter a valid number (digits only, e.g. 10).';
+      const n = parseFloat(value);
+      if (n <= 0 || n > 100) return 'Enter a percentage between 0 and 100.';
+    }
+
     return '';
   };
 
@@ -181,26 +196,151 @@ export function Step2FieldSelection() {
     setFieldEdits((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.name.endsWith('.csv')) {
-      setCsvValidation({ valid: false, errorCount: 0, errors: [{ row: 0, type: 'format', message: 'File must be a CSV.' }] });
+  const EXPECTED_HEADERS = ['User ID', 'Name', 'Compensation', 'Title', 'Department', 'Location'];
+
+  const parseCsv = (text) => {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length === 0) return { headers: [], rows: [] };
+    const headers = lines[0].split(',').map((h) => h.trim());
+    const rows = lines.slice(1).map((line) => line.split(',').map((c) => c.trim()));
+    return { headers, rows };
+  };
+
+  const validateCsvContent = (headers, rows) => {
+    const errors = [];
+
+    const headerMismatch = EXPECTED_HEADERS.some((h, i) => (headers[i] || '').toLowerCase() !== h.toLowerCase());
+    if (headerMismatch) {
+      errors.push({ row: 1, col: '', type: 'format', message: `Expected headers: ${EXPECTED_HEADERS.join(', ')}` });
+    }
+
+    const selectedIds = new Set(selectedUsers.map((u) => u.id));
+
+    rows.forEach((cols, i) => {
+      const rowNum = i + 2;
+      const userId = cols[0] || '';
+      const name = cols[1] || '';
+      const compensation = cols[2] || '';
+      const title = cols[3] || '';
+      const department = cols[4] || '';
+      const location = cols[5] || '';
+
+      if (!userId.trim()) {
+        errors.push({ row: rowNum, col: 'User ID', type: 'validation', message: 'User ID is empty.' });
+      } else if (!selectedIds.has(userId)) {
+        errors.push({ row: rowNum, col: 'User ID', type: 'validation', message: `User "${userId}" not in selected users.` });
+      }
+
+      if (!name.trim()) {
+        errors.push({ row: rowNum, col: 'Name', type: 'validation', message: 'Name is empty.' });
+      }
+
+      if (!compensation.trim()) {
+        errors.push({ row: rowNum, col: 'Compensation', type: 'validation', message: 'Compensation is empty.' });
+      } else {
+        const n = parseFloat(compensation.replace(/[$,]/g, ''));
+        if (isNaN(n) || n < 0) {
+          errors.push({ row: rowNum, col: 'Compensation', type: 'validation', message: 'Must be a valid positive number.' });
+        }
+      }
+
+      if (!title.trim()) {
+        errors.push({ row: rowNum, col: 'Title', type: 'validation', message: 'Title is empty.' });
+      }
+
+      if (!department.trim()) {
+        errors.push({ row: rowNum, col: 'Department', type: 'validation', message: 'Department is empty.' });
+      }
+
+      if (!location.trim()) {
+        errors.push({ row: rowNum, col: 'Location', type: 'validation', message: 'Location is empty.' });
+      }
+    });
+
+    return errors;
+  };
+
+  const ALLOWED_EXTENSIONS = ['.csv', '.xls', '.xlsx'];
+
+  const parseXlsx = (buffer) => {
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (raw.length === 0) return { headers: [], rows: [] };
+    let headers = raw[0].map(String);
+    let rows = raw.slice(1).map((r) => r.map(String));
+
+    // Strip the "Errors" column if this is a re-upload of the error file
+    if (headers[0].toLowerCase() === 'errors') {
+      headers = headers.slice(1);
+      rows = rows.map((r) => r.slice(1));
+    }
+
+    return { headers, rows };
+  };
+
+  const processFileData = (headers, rows) => {
+    const filteredRows = rows.filter((cols) => cols.some((c) => String(c).trim() !== ''));
+    const totalRows = filteredRows.length;
+    setParsedCsvData({ headers, rows: filteredRows });
+
+    if (totalRows === 0) {
+      setCsvValidation({ valid: false, totalRows: 0, errorCount: 1, errors: [{ row: 0, col: '', type: 'format', message: 'File has no data rows.' }] });
       setShowCsvErrors(true);
       return;
     }
+
+    const errors = validateCsvContent(headers, filteredRows);
+    const errorRows = new Set(errors.map((err) => err.row));
+
+    if (errors.length === 0) {
+      setCsvValidation({ valid: true, totalRows, errorCount: 0, errors: [] });
+      setShowCsvErrors(false);
+    } else {
+      setCsvValidation({ valid: false, totalRows, errorCount: errorRows.size, errors });
+      setShowCsvErrors(true);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      setCsvValidation({ valid: false, totalRows: 0, errorCount: 1, errors: [{ row: 0, col: '', type: 'format', message: 'File must be .csv, .xls, or .xlsx.' }] });
+      setShowCsvErrors(true);
+      return;
+    }
+
     setCsvFile(file);
-    const mockErrors = [
-      { row: 2, type: 'validation', message: 'Compensation must be a positive number.' },
-      { row: 5, type: 'format', message: 'Invalid date format for Start Date.' },
-    ];
-    setCsvValidation({ valid: false, errorCount: 2, errors: mockErrors });
-    setShowCsvErrors(true);
+
+    if (ext === '.csv') {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const text = evt.target?.result || '';
+        let { headers, rows } = parseCsv(text);
+        if (headers[0]?.toLowerCase() === 'errors') {
+          headers = headers.slice(1);
+          rows = rows.map((r) => r.slice(1));
+        }
+        processFileData(headers, rows);
+      };
+      reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const buffer = new Uint8Array(evt.target?.result);
+        const { headers, rows } = parseXlsx(buffer);
+        processFileData(headers, rows);
+      };
+      reader.readAsArrayBuffer(file);
+    }
   };
 
   const handleDownloadTemplate = () => {
     const headers = ['User ID', 'Name', 'Compensation', 'Title', 'Department', 'Location'];
-    const rows = selectedUsers.slice(0, 5).map((u) => [u.id, u.name, '100000', u.role || 'Employee', u.department, '']);
+    const rows = selectedUsers.map((u) => [u.id, u.name, '100000', u.role || 'Employee', u.department, u.country || '']);
     const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -211,23 +351,105 @@ export function Step2FieldSelection() {
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadErrorCsv = () => {
+    if (!csvValidation?.errors?.length || !parsedCsvData) return;
+
+    const { headers, rows } = parsedCsvData;
+
+    const errorsByRow = new Map();
+    csvValidation.errors.forEach((err) => {
+      if (!errorsByRow.has(err.row)) errorsByRow.set(err.row, []);
+      errorsByRow.get(err.row).push(err);
+    });
+
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const ERR_BG = '#FEE2E2';
+    const ERR_BORDER = '#FCA5A5';
+    const OK_BG = '#D1FAE5';
+    const OK_BORDER = '#6EE7B7';
+    const HEADER_BG = '#F3F4F6';
+    const BORDER = '#D1D5DB';
+
+    let tableRows = '';
+
+    tableRows += '<tr>';
+    tableRows += `<th style="background:${HEADER_BG};border:1px solid ${BORDER};padding:6px 10px;font-weight:bold;">Errors</th>`;
+    headers.forEach((h) => {
+      tableRows += `<th style="background:${HEADER_BG};border:1px solid ${BORDER};padding:6px 10px;font-weight:bold;">${esc(h)}</th>`;
+    });
+    tableRows += '</tr>';
+
+    rows.forEach((cols, i) => {
+      const rowNum = i + 2;
+      const rowErrors = errorsByRow.get(rowNum);
+      const hasErrors = rowErrors && rowErrors.length > 0;
+
+      tableRows += '<tr>';
+
+      if (hasErrors) {
+        const errorColNames = new Set(rowErrors.map((e) => e.col));
+        const errorDesc = rowErrors.map((e, idx) => `${idx + 1}. ${e.col}: ${e.message}`).join('<br/>');
+        tableRows += `<td style="background:${ERR_BG};border:1px solid ${ERR_BORDER};padding:6px 10px;color:#991B1B;font-size:12px;white-space:normal;">${errorDesc}</td>`;
+        headers.forEach((h, ci) => {
+          const val = cols[ci] || '';
+          const isErr = errorColNames.has(h);
+          const bg = isErr ? `background:${ERR_BG};border:1px solid ${ERR_BORDER};` : `border:1px solid ${BORDER};`;
+          const color = isErr ? 'color:#991B1B;' : '';
+          tableRows += `<td style="${bg}padding:6px 10px;${color}">${esc(val)}</td>`;
+        });
+      } else {
+        tableRows += `<td style="background:${OK_BG};border:1px solid ${OK_BORDER};padding:6px 10px;color:#065F46;font-size:12px;">No errors found</td>`;
+        headers.forEach((_, ci) => {
+          const val = cols[ci] || '';
+          tableRows += `<td style="border:1px solid ${BORDER};padding:6px 10px;">${esc(val)}</td>`;
+        });
+      }
+
+      tableRows += '</tr>';
+    });
+
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><style>table{border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px;}th,td{white-space:nowrap;}</style></head>
+<body><table>${tableRows}</table></body></html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const baseName = csvFile?.name?.replace(/\.[^.]+$/, '') || 'bulk_update';
+    a.download = `${baseName}_error_sheet.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleContinueWithExclusions = () => {
     setValidationErrors([]);
     setShowCsvErrors(false);
-    setCurrentStep(4);
+    setCurrentStep(3);
   };
 
   const handleReupload = () => {
     setCsvFile(null);
     setCsvValidation(null);
+    setParsedCsvData(null);
     setShowCsvErrors(false);
+    setCsvExcludeRows(false);
+    if (csvInputRef.current) {
+      csvInputRef.current.value = '';
+      csvInputRef.current.click();
+    }
   };
 
-  const hasValidationIssues = editMethod === 'csv' && csvValidation && !csvValidation.valid;
   const canProceedFilters = editMethod === 'filters' && fieldEdits.length > 0;
   const canProceedCsv = editMethod === 'csv' && csvFile && (csvValidation?.valid || csvExcludeRows);
-  const canGoToValidation = editMethod === 'csv' && csvFile && csvValidation && !csvValidation.valid;
-  const canProceed = canProceedFilters || canProceedCsv || canGoToValidation;
+  const canProceed = canProceedFilters || canProceedCsv;
+
+  const allRowsHaveErrors = csvValidation && !csvValidation.valid &&
+    csvValidation.errorCount >= (csvValidation.totalRows || 0);
+  const validRowCount = csvValidation
+    ? (csvValidation.totalRows || 0) - (csvValidation.errorCount || 0)
+    : 0;
 
   return (
     <>
@@ -347,7 +569,7 @@ export function Step2FieldSelection() {
 
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-primary"
               onClick={handleAddFieldEdit}
               disabled={isBlocked}
             >
@@ -396,33 +618,51 @@ export function Step2FieldSelection() {
               Download CSV template
             </button>
             <label className="btn btn-secondary" style={{ margin: 0, cursor: 'pointer' }}>
-              Upload CSV
-              <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFileChange} />
+              Upload CSV / Excel
+              <input ref={csvInputRef} type="file" accept=".csv,.xls,.xlsx" style={{ display: 'none' }} onChange={handleFileChange} />
             </label>
           </div>
-          {csvFile && <p style={{ margin: 0, fontSize: '0.9rem' }}>Uploaded: {csvFile.name}</p>}
+          {csvFile && <p style={{ margin: 0, fontSize: '0.9rem' }}>Uploaded: <em>{csvFile.name}</em></p>}
+
+          {csvFile && csvValidation?.valid && (
+            <div style={{ marginTop: '0.75rem', padding: '0.5rem 0.75rem', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.875rem', color: '#065F46' }}>
+              <span style={{ fontWeight: 600 }}>&#10003;</span> All {csvValidation.totalRows} row(s) validated — ready to preview.
+            </div>
+          )}
 
           {showCsvErrors && csvValidation && !csvValidation.valid && (
             <div className="card" style={{ marginTop: '1rem', borderColor: 'var(--error)', background: '#fef2f2' }}>
               <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--error)' }}>Validation results</h4>
-              <p style={{ margin: '0 0 0.75rem 0' }}>{csvValidation.errorCount} row(s) have errors.</p>
-              <button type="button" className="btn btn-secondary" style={{ marginRight: '0.5rem' }}>
+              <p style={{ margin: '0 0 0.75rem 0' }}>
+                {csvValidation.errorCount} of {csvValidation.totalRows} row(s) have errors.
+                {allRowsHaveErrors
+                  ? ' All rows have issues — please fix and re-upload.'
+                  : ` ${validRowCount} valid row(s) can proceed.`}
+              </p>
+              <button type="button" className="btn btn-secondary" style={{ marginRight: '0.5rem' }} onClick={handleDownloadErrorCsv}>
                 Download error CSV
               </button>
               <p style={{ margin: '0.75rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 Error CSV is colour-coded and lists all error descriptions per row.
               </p>
-              <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => { setCsvExcludeRows(true); handleContinueWithExclusions(); }}>
-                  Continue and exclude error rows
+              <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={allRowsHaveErrors}
+                  onClick={() => { setCsvExcludeRows(true); handleContinueWithExclusions(); }}
+                >
+                  Continue with {validRowCount} valid row(s)
                 </button>
                 <button type="button" className="btn btn-primary" onClick={handleReupload}>
                   Re-upload corrected CSV
                 </button>
               </div>
-              <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Re-upload must be the entire CSV with all issues rectified.
-              </p>
+              {allRowsHaveErrors && (
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: 'var(--error)' }}>
+                  Cannot continue — no valid rows to process.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -436,12 +676,9 @@ export function Step2FieldSelection() {
           type="button"
           className="btn btn-primary"
           disabled={!editMethod || !canProceed}
-          onClick={() => {
-            if (hasValidationIssues && !csvExcludeRows) setCurrentStep(3);
-            else setCurrentStep(4);
-          }}
+          onClick={() => setCurrentStep(3)}
         >
-          {hasValidationIssues && !csvExcludeRows ? 'Review errors' : 'Preview changes'}
+          Preview changes
         </button>
       </div>
     </>
