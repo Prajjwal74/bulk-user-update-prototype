@@ -177,8 +177,8 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 </div>
 <div class="grid-2">
 <div>
-<div class="screen-wrap"><img class="screen screen-md" src="${img('02-user-selection.png')}"/></div>
-<div class="screen-wrap"><img class="screen screen-sm" src="${img('03-search-results.png')}"/></div>
+<div class="screen-wrap"><img class="screen screen-sm" src="${img('02-user-selection.png')}"/></div>
+<div class="screen-wrap"><img class="screen screen-sm" src="${img('Upload_Users_CSV_Validation_Failure')}"/></div>
 </div>
 <div>
 <div class="screen-wrap"><img class="screen screen-sm" src="${img('05-filters-tab.png')}"/></div>
@@ -186,6 +186,7 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 <div class="edge"><span class="edge-icon e-ok">✓</span><div><strong>Duplicate prevention</strong> — "Already added" inline</div></div>
 <div class="edge"><span class="edge-icon e-ok">✓</span><div><strong>Smart CTA</strong> — disables when all filtered users already selected</div></div>
 <div class="edge"><span class="edge-icon e-ok">✓</span><div><strong>Filters persist</strong> after applying — not cleared</div></div>
+<div class="edge"><span class="edge-icon e-ok">✓</span><div><strong>Remove All</strong> — one-click option to clear entire selected users list</div></div>
 </div>
 </div>
 </div>
