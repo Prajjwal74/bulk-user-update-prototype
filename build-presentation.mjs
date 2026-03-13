@@ -422,6 +422,7 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 <div class="screen-wrap"><img class="screen screen-sm" src="${img('Reverse_Not_Allowed')}" alt="Reverse not allowed"/></div>
 </div>
 </div>
+</div>
 
 <!-- S14: Data Propagation -->
 <div class="slide dark">
@@ -488,8 +489,6 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 </div>
 </div>
 </div>
-</div>
-
 </div>
 
 <div class="nav">
