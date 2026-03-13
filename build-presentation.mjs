@@ -140,7 +140,7 @@ table.dt tr:last-child td{border:none}
 </div>
 </div>
 <div class="card mt-2" style="border-left:4px solid #2563EB;max-width:100%">
-<p style="font-size:0.88rem"><strong>Why Hybrid:</strong> Uniform changes ("give all L3s a 5% raise") → filters. Per-user changes ("each person gets different comp after reviews") → CSV. One wizard, two paths. Progressive disclosure — complexity only when needed.</p>
+<p style="font-size:0.88rem"><strong>Why Hybrid:</strong> One flow, two ways to edit. <strong>Filters</strong> = same change for many people (e.g. 5% raise for all L3s). <strong>CSV</strong> = different value per person (e.g. each employee’s new comp). Pick the one that fits; the rest stays simple.</p>
 </div>
 </div>
 
