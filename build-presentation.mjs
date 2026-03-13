@@ -425,7 +425,7 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 
 <!-- S14: Data Propagation -->
 <div class="slide dark">
-<div style="flex:1;min-height:0;display:flex;flex-direction:column">
+<div style="min-height:70vh">
 <p class="label">Question 3</p>
 <h2>Data Propagation Challenges & Solutions</h2>
 <div class="grid-2 mt-1">
@@ -442,7 +442,6 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 <div class="card mb-1"><h4>🔀 Dependency Graph (DAG)</h4><p>Process in topological order. Parent fails → child syncs held.</p></div>
 <div class="card mb-1"><h4>🛡️ Idempotent Operations</h4><p>Every sync safe to retry. Change-request-ID for deduplication.</p></div>
 <div class="card"><h4>📅 Scheduling as Buffer</h4><p>Batch during off-peak hours. Reduces rate-limit pressure. Lands before payroll cut-offs.</p></div>
-</div>
 </div>
 </div>
 </div>
