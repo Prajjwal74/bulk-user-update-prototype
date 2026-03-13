@@ -169,7 +169,6 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 <div>
 <div class="screen-wrap"><img class="screen screen-sm" src="${img('05-filters-tab.png')}"/></div>
 <h3 class="mt-1">Edge Cases</h3>
-<div class="edge"><span class="edge-icon e-block">!</span><div><strong>Max 500 users</strong> — hard limit with warning</div></div>
 <div class="edge"><span class="edge-icon e-ok">✓</span><div><strong>Duplicate prevention</strong> — "Already added" inline</div></div>
 <div class="edge"><span class="edge-icon e-ok">✓</span><div><strong>Smart CTA</strong> — disables when all filtered users already selected</div></div>
 <div class="edge"><span class="edge-icon e-ok">✓</span><div><strong>Filters persist</strong> after applying — not cleared</div></div>
