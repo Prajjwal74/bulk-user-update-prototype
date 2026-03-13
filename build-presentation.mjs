@@ -5,6 +5,20 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const b64 = JSON.parse(fs.readFileSync(path.join(__dirname, 'screenshots', 'b64.json'), 'utf-8'));
 
+// Prefer PNGs in screenshots/ when present (so re-captured screenshots override b64.json)
+const screenshotsDir = path.join(__dirname, 'screenshots');
+if (fs.existsSync(screenshotsDir)) {
+  for (const f of fs.readdirSync(screenshotsDir)) {
+    if (!/\.png$/i.test(f) || f.startsWith('.')) continue;
+    const fullPath = path.join(screenshotsDir, f);
+    if (!fs.statSync(fullPath).isFile()) continue;
+    try {
+      const buf = fs.readFileSync(fullPath);
+      b64[f] = 'data:image/png;base64,' + buf.toString('base64');
+    } catch (_) {}
+  }
+}
+
 const bulkDir = path.join(__dirname, 'screenshots', 'bulk-upload');
 if (fs.existsSync(bulkDir)) {
   for (const f of fs.readdirSync(bulkDir)) {
