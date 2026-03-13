@@ -1,0 +1,28 @@
+---
+description: When changing the presentation, push to GitHub and update the live link
+globs: presentation.html,build-presentation.mjs,**/screenshots/**/*.png,**/bulk-upload/**
+alwaysApply: false
+---
+
+# Presentation — Deploy After Changes
+
+Whenever you make changes to the **presentation** (slides, screenshots, or build script), do the following in the same session so the live link stays up to date:
+
+1. **Rebuild the presentation** (if you changed content or assets):
+   ```bash
+   node build-presentation.mjs
+   ```
+
+2. **Commit and push to GitHub** (main branch):
+   - Stage: `presentation.html`, `build-presentation.mjs`, `screenshots/`, and any related files.
+   - Commit with a clear message (e.g. "Update presentation: ...").
+   - Push to `origin` (main).
+
+3. **Update the live site** (GitHub Pages):
+   - Build the app: `npx vite build --base=/bulk-user-update-prototype/`
+   - Copy presentation into dist: `cp presentation.html Bulk_User_Update_Case_Study.pptx dist/ 2>/dev/null; cp presentation.html dist/`
+   - Deploy: `npx gh-pages -d dist`
+
+The presentation link is: **https://prajjwal74.github.io/bulk-user-update-prototype/presentation.html**
+
+Do not skip the push and gh-pages deploy when the presentation or its assets were modified.

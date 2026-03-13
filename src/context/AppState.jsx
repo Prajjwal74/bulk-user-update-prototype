@@ -242,6 +242,19 @@ export function AppStateProvider({ children }) {
     return MOCK_USERS.filter((u) => filters.every((f) => matchesFilter(u, f)) && !existingIds.has(u.id)).length;
   }, [filters, selectedUsers]);
 
+  const selectedUserIdsKey = useMemo(
+    () => selectedUsers.map((u) => u.id).sort().join(','),
+    [selectedUsers]
+  );
+
+  useEffect(() => {
+    setCsvFile(null);
+    setCsvValidation(null);
+    setParsedCsvData(null);
+    setExcludedUserIds([]);
+    setValidationErrors([]);
+  }, [selectedUserIdsKey]);
+
   const applyFilterSelection = useCallback(() => {
     const fromFilter = MOCK_USERS.filter((u) => filters.every((f) => matchesFilter(u, f)));
     setSelectedUsers((prev) => {

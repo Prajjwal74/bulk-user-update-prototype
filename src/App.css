@@ -175,7 +175,7 @@
 }
 
 .user-selection-list-title {
-  margin: 0 0 0.25rem 0;
+  margin: 0 0 0.75rem 0;
   font-size: 1rem;
   font-weight: 600;
   color: var(--text);
@@ -750,4 +750,114 @@
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* CSV Upload – Step 1 user selection */
+.csv-upload-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+}
+
+.csv-upload-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.csv-upload-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.csv-upload-dropzone:hover {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.04);
+}
+
+.csv-upload-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  color: #991b1b;
+  font-size: 0.85rem;
+}
+
+.csv-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  min-width: 80px;
+}
+
+.csv-stat-num {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.csv-stat-label {
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+.csv-stat-success {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.csv-stat-error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.csv-stat-neutral {
+  background: var(--hover-bg);
+  color: var(--text-muted);
+}
+
+.csv-error-preview {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: #1e40af;
+}
+
+.btn-link-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+}
+
+.btn-link-download:hover {
+  color: #1e40af;
+  text-decoration: underline;
 }

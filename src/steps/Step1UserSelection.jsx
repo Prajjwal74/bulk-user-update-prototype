@@ -1,8 +1,11 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAppState } from '../context/AppState';
 import { Combobox } from '../components/Combobox';
+import * as XLSX from 'xlsx';
 
 const MAX_USERS = 500;
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ACCEPTED_EXTENSIONS = ['.csv', '.xls', '.xlsx'];
 
 function DownloadIcon() {
   return (
@@ -168,6 +171,202 @@ export function Step1UserSelection() {
   const [activeTab, setActiveTab] = useState('search');
   const [showMaxWarning, setShowMaxWarning] = useState(false);
 
+  // CSV upload state
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvError, setCsvError] = useState('');
+  const [csvParsedUsers, setCsvParsedUsers] = useState(null);
+  const [csvValidationErrors, setCsvValidationErrors] = useState([]);
+  const [csvAllRows, setCsvAllRows] = useState([]);
+  const csvInputRef = useRef(null);
+
+  const handleDownloadSample = useCallback(() => {
+    const sampleIds = MOCK_USERS.slice(0, 3).map((u) => u.id);
+    const rows = ['User ID', ...sampleIds].join('\n');
+    const blob = new Blob([rows], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'user_ids_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [MOCK_USERS]);
+
+  const handleCsvUpload = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCsvError('');
+    setCsvParsedUsers(null);
+    setCsvValidationErrors([]);
+
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!ACCEPTED_EXTENSIONS.includes(ext)) {
+      setCsvError(`Invalid file format (${ext}). Please upload .csv, .xls, or .xlsx files only.`);
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setCsvError(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum 5 MB allowed.`);
+      return;
+    }
+
+    setCsvFile(file);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        let ids = [];
+
+        const trimCell = (s) => String(s).replace(/^["']|["']$/g, '').trim();
+
+        if (ext === '.csv') {
+          const text = evt.target.result;
+          const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          if (lines.length === 0) { setCsvError('File is empty.'); return; }
+          const headerCells = lines[0].split(',').map(trimCell);
+          const stripErrorsCol = headerCells[0].toLowerCase() === 'errors';
+          const headers = stripErrorsCol ? headerCells.slice(1) : headerCells;
+          if ((headers[0] || '').toLowerCase() !== 'user id') {
+            setCsvError(`Invalid header: "${headers[0] || headerCells[0]}". Expected "User ID".`);
+            return;
+          }
+          const idColIndex = stripErrorsCol ? 1 : 0;
+          ids = lines.slice(1).map((l) => l.split(',').map(trimCell)[idColIndex] || '').filter(Boolean);
+        } else {
+          const data = new Uint8Array(evt.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+          if (rows.length === 0) { setCsvError('File is empty.'); return; }
+          const rawHeaderRow = (rows[0] || []).map((c) => trimCell(String(c)));
+          let idColIndex = 0;
+          if (rawHeaderRow[0]?.toLowerCase() === 'errors') {
+            idColIndex = 1;
+          }
+          const header = rawHeaderRow[idColIndex] || '';
+          if (header.toLowerCase() !== 'user id') {
+            setCsvError(`Invalid header: "${header}". Expected "User ID".`);
+            return;
+          }
+          ids = rows.slice(1).map((r) => trimCell(String((Array.isArray(r) ? r[idColIndex] : r) || ''))).filter(Boolean);
+        }
+
+        if (ids.length === 0) {
+          setCsvError('No user IDs found in the file. Add User IDs below the header row.');
+          return;
+        }
+
+        const errors = [];
+        const validUsers = [];
+        const allRows = [];
+        const seen = new Set();
+
+        ids.forEach((id, i) => {
+          const rowNum = i + 2;
+          if (seen.has(id.toLowerCase())) {
+            const reason = 'Duplicate ID in file';
+            errors.push({ row: rowNum, id, reason });
+            allRows.push({ rowNum, id, hasError: true, reason });
+            return;
+          }
+          seen.add(id.toLowerCase());
+
+          const user = MOCK_USERS.find((u) => u.id.toLowerCase() === id.toLowerCase());
+          if (!user) {
+            const reason = 'User ID not found in system';
+            errors.push({ row: rowNum, id, reason });
+            allRows.push({ rowNum, id, hasError: true, reason });
+            return;
+          }
+          if (selectedUsers.some((u) => u.id === user.id)) {
+            const reason = 'Already in selected list';
+            errors.push({ row: rowNum, id, reason });
+            allRows.push({ rowNum, id, hasError: true, reason });
+            return;
+          }
+          validUsers.push(user);
+          allRows.push({ rowNum, id, hasError: false });
+        });
+
+        setCsvParsedUsers(validUsers);
+        setCsvValidationErrors(errors);
+        setCsvAllRows(allRows);
+      } catch (err) {
+        setCsvError('Failed to parse file. Please check the format and try again.');
+      }
+    };
+
+    if (ext === '.csv') reader.readAsText(file);
+    else reader.readAsArrayBuffer(file);
+  }, [MOCK_USERS, selectedUsers]);
+
+  const handleAddCsvUsers = useCallback(() => {
+    if (!csvParsedUsers || csvParsedUsers.length === 0) return;
+    const remaining = MAX_USERS - selectedUsers.length;
+    const toAdd = csvParsedUsers.slice(0, remaining);
+    toAdd.forEach((u) => addUser(u));
+    if (csvParsedUsers.length > remaining) {
+      setShowMaxWarning(true);
+    }
+    setCsvFile(null);
+    setCsvParsedUsers(null);
+    setCsvValidationErrors([]);
+    setCsvAllRows([]);
+    setCsvError('');
+    if (csvInputRef.current) csvInputRef.current.value = '';
+  }, [csvParsedUsers, selectedUsers.length, addUser]);
+
+  const handleDownloadErrorSheet = useCallback(() => {
+    if (csvAllRows.length === 0) return;
+
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const ERR_BG = '#FEE2E2';
+    const ERR_BORDER = '#FCA5A5';
+    const OK_BG = '#D1FAE5';
+    const OK_BORDER = '#6EE7B7';
+    const HEADER_BG = '#F3F4F6';
+    const BORDER = '#D1D5DB';
+
+    let tableRows = '';
+    tableRows += '<tr>';
+    tableRows += `<th style="background:${HEADER_BG};border:1px solid ${BORDER};padding:6px 10px;font-weight:bold;">Errors</th>`;
+    tableRows += `<th style="background:${HEADER_BG};border:1px solid ${BORDER};padding:6px 10px;font-weight:bold;">User ID</th>`;
+    tableRows += '</tr>';
+
+    csvAllRows.forEach((row) => {
+      tableRows += '<tr>';
+      if (row.hasError) {
+        const errorDesc = `1. User ID: ${row.reason}`;
+        tableRows += `<td style="background:${ERR_BG};border:1px solid ${ERR_BORDER};padding:6px 10px;color:#991B1B;font-size:12px;white-space:normal;">${esc(errorDesc)}</td>`;
+        tableRows += `<td style="background:${ERR_BG};border:1px solid ${ERR_BORDER};padding:6px 10px;color:#991B1B;">${esc(row.id)}</td>`;
+      } else {
+        tableRows += `<td style="background:${OK_BG};border:1px solid ${OK_BORDER};padding:6px 10px;color:#065F46;font-size:12px;">No errors found</td>`;
+        tableRows += `<td style="border:1px solid ${BORDER};padding:6px 10px;">${esc(row.id)}</td>`;
+      }
+      tableRows += '</tr>';
+    });
+
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><style>table{border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px;}th,td{white-space:nowrap;}</style></head>
+<body><table>${tableRows}</table></body></html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'user_upload_errors.xls';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [csvAllRows]);
+
+  const handleCsvReset = useCallback(() => {
+    setCsvFile(null);
+    setCsvParsedUsers(null);
+    setCsvValidationErrors([]);
+    setCsvAllRows([]);
+    setCsvError('');
+    if (csvInputRef.current) csvInputRef.current.value = '';
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'filters' && filters.length === 0) {
       addFilter({ field: 'Country', value: '' });
@@ -253,6 +452,15 @@ export function Step1UserSelection() {
               >
                 Add by filters
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'csv'}
+                className={`mode-tab ${activeTab === 'csv' ? 'mode-tab--active' : ''}`}
+                onClick={() => setActiveTab('csv')}
+              >
+                Upload CSV
+              </button>
             </div>
 
             {activeTab === 'search' && (
@@ -320,6 +528,142 @@ export function Step1UserSelection() {
               </p>
             )}
           </>
+        )}
+
+        {activeTab === 'csv' && (
+          <div className="csv-upload-section">
+            <div className="csv-upload-intro">
+              <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                Upload a CSV or Excel file with a single column <strong>"User ID"</strong> to bulk-add users.
+              </p>
+              <button type="button" className="btn-link-download" onClick={handleDownloadSample}>
+                Download sample file <DownloadIcon />
+              </button>
+            </div>
+
+            <div
+              className="csv-upload-dropzone"
+              onClick={() => !csvParsedUsers && csvInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (csvParsedUsers) return;
+                const dt = e.dataTransfer;
+                if (dt.files?.length) {
+                  const fakeEvent = { target: { files: dt.files } };
+                  handleCsvUpload(fakeEvent);
+                }
+              }}
+              style={{ cursor: csvParsedUsers ? 'default' : 'pointer' }}
+            >
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv,.xls,.xlsx"
+                style={{ display: 'none' }}
+                onChange={handleCsvUpload}
+              />
+              {!csvFile && !csvParsedUsers && (
+                <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📄</div>
+                  <p style={{ margin: 0, fontWeight: 500 }}>Click to upload or drag & drop</p>
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    .csv, .xls, .xlsx — Max 5 MB — Max {MAX_USERS} users
+                  </p>
+                </div>
+              )}
+
+              {csvFile && csvParsedUsers && (
+                <div style={{ padding: '0.75rem 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>📄 {csvFile.name}</span>
+                    <button type="button" className="btn btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={handleCsvReset}>
+                      Clear
+                    </button>
+                  </div>
+
+                  {csvValidationErrors.length === 0 ? (
+                    <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.875rem', color: '#065F46' }}>
+                      <span style={{ fontWeight: 600 }}>&#10003;</span> All {csvParsedUsers.length} row(s) validated — ready to add.
+                    </div>
+                  ) : (
+                    <div className="card" style={{ marginTop: '1rem', borderColor: 'var(--error)', background: '#fef2f2' }}>
+                      <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--error)' }}>Validation results</h4>
+                      <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.85rem' }}>
+                        {csvValidationErrors.length} of {csvParsedUsers.length + csvValidationErrors.length} row(s) have errors.
+                        {csvParsedUsers.length === 0
+                          ? ' All rows have issues — please fix and re-upload.'
+                          : ` ${csvParsedUsers.length} valid row(s) can proceed.`}
+                        {' '}
+                        <button type="button" className="btn-link-download" onClick={handleDownloadErrorSheet}>
+                          Download error sheet <DownloadIcon />
+                        </button>
+                      </p>
+                      <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={csvParsedUsers.length === 0}
+                          onClick={handleAddCsvUsers}
+                        >
+                          Add {csvParsedUsers.length} valid user{csvParsedUsers.length !== 1 ? 's' : ''} to the list
+                        </button>
+                        <button type="button" className="btn btn-secondary" onClick={() => { handleCsvReset(); csvInputRef.current?.click(); }}>
+                          Re-upload corrected CSV
+                        </button>
+                      </div>
+                      {csvParsedUsers.length === 0 && (
+                        <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: 'var(--error)' }}>
+                          Cannot continue — no valid users to add.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {csvValidationErrors.length === 0 && (
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '1rem' }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={handleAddCsvUsers}
+                      >
+                        Add {csvParsedUsers.length} user{csvParsedUsers.length !== 1 ? 's' : ''} to the list
+                      </button>
+                      <button type="button" className="btn btn-secondary" onClick={() => { handleCsvReset(); csvInputRef.current?.click(); }}>
+                        Re-upload
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {csvError && (
+              <div className="csv-upload-error">
+                <span style={{ fontWeight: 600 }}>⚠ Upload failed</span>
+                <p style={{ margin: '0.25rem 0 0' }}>{csvError}</p>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ marginTop: '0.75rem' }}
+                  onClick={() => {
+                    setCsvError('');
+                    setCsvFile(null);
+                    csvInputRef.current?.click();
+                  }}
+                >
+                  Re-upload correct file
+                </button>
+              </div>
+            )}
+
+            {showMaxWarning && (
+              <p className="error-message" style={{ marginTop: '0.5rem' }}>
+                Maximum {MAX_USERS} users allowed. Remove some to add more.
+              </p>
+            )}
+          </div>
         )}
 
         {activeTab === 'filters' && (
@@ -455,9 +799,9 @@ export function Step1UserSelection() {
                 </button>
               )}
             </div>
-            <p className="user-selection-list-hint">One list — add via search or filters on the left.</p>
+            <p className="user-selection-list-hint">One list — add via search, filters, or CSV upload on the left.</p>
             {selectedUsers.length === 0 ? (
-              <p className="empty-state">No users yet. Use search or filters to add users to this list.</p>
+              <p className="empty-state" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>No users yet. Use search, filters, or CSV upload to add users.</p>
             ) : (
               <div className="table-wrap user-selection-table-wrap">
                 <table>

@@ -2,6 +2,16 @@ import { useState, useMemo, useRef } from 'react';
 import { useAppState } from '../context/AppState';
 import * as XLSX from 'xlsx';
 
+function DownloadIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ verticalAlign: 'middle' }}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
 const COUNTRY_CURRENCY = {
   USA: 'USD', India: 'INR', UK: 'GBP', Canada: 'CAD', Australia: 'AUD',
   Germany: 'EUR', France: 'EUR', Japan: 'JPY', Singapore: 'SGD',
@@ -650,14 +660,14 @@ export function Step2FieldSelection() {
           <p style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
             Download a template pre-filled with selected users. Edit the values and re-upload.
           </p>
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate}>
-              Download CSV template
-            </button>
-            <label className="btn btn-secondary" style={{ margin: 0, cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <label className="btn btn-primary" style={{ margin: 0, cursor: 'pointer' }}>
               Upload CSV / Excel
               <input ref={csvInputRef} type="file" accept=".csv,.xls,.xlsx" style={{ display: 'none' }} onChange={handleFileChange} />
             </label>
+            <button type="button" className="btn-link-download" onClick={handleDownloadTemplate}>
+              Download CSV template <DownloadIcon />
+            </button>
           </div>
           {csvFile && <p style={{ margin: 0, fontSize: '0.9rem' }}>Uploaded: <em>{csvFile.name}</em></p>}
 
@@ -670,17 +680,15 @@ export function Step2FieldSelection() {
           {showCsvErrors && csvValidation && !csvValidation.valid && (
             <div className="card" style={{ marginTop: '1rem', borderColor: 'var(--error)', background: '#fef2f2' }}>
               <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--error)' }}>Validation results</h4>
-              <p style={{ margin: '0 0 0.75rem 0' }}>
+              <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.85rem' }}>
                 {csvValidation.errorCount} of {csvValidation.totalRows} row(s) have errors.
                 {allRowsHaveErrors
                   ? ' All rows have issues — please fix and re-upload.'
                   : ` ${validRowCount} valid row(s) can proceed.`}
-              </p>
-              <button type="button" className="btn btn-secondary" style={{ marginRight: '0.5rem' }} onClick={handleDownloadErrorCsv}>
-                Download error CSV
-              </button>
-              <p style={{ margin: '0.75rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Error CSV is colour-coded and lists all error descriptions per row.
+                {' '}
+                <button type="button" className="btn-link-download" onClick={handleDownloadErrorCsv}>
+                  Download error CSV <DownloadIcon />
+                </button>
               </p>
               <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
