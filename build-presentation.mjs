@@ -488,6 +488,7 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 </div>
 </div>
 </div>
+</div>
 
 </div>
 
