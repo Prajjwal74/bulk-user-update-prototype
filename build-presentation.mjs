@@ -425,6 +425,7 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 
 <!-- S14: Data Propagation -->
 <div class="slide dark">
+<div style="flex:1;min-height:0;display:flex;flex-direction:column">
 <p class="label">Question 3</p>
 <h2>Data Propagation Challenges & Solutions</h2>
 <div class="grid-2 mt-1">
@@ -444,9 +445,12 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 </div>
 </div>
 </div>
+</div>
+</div>
 
-<!-- S12: System Impact Matrix -->
+<!-- S15: System Impact Matrix -->
 <div class="slide light">
+<div style="flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto">
 <p class="label">Question 3 — Continued</p>
 <h2>Field → System Impact Matrix</h2>
 <p class="muted mb-1">This mapping drives the "Affected Systems" preview shown to admins before submit.</p>
@@ -465,8 +469,9 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 <p style="font-size:0.88rem"><strong>Why this matters:</strong> Admins see exactly which systems are affected before submitting. They can schedule for off-hours if many critical systems are involved.</p>
 </div>
 </div>
+</div>
 
-<!-- S13: Summary -->
+<!-- S16: Summary -->
 <div class="slide dark">
 <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
 <p class="label">Summary</p>
@@ -489,7 +494,7 @@ ${['📋 Edit History','👥 Select Users','✏️ Define Changes','👁️ Prev
 
 <div class="nav">
 <button id="pb" onclick="go(-1)" disabled>← Prev</button>
-<span class="pg" id="pg">1 / 13</span>
+<span class="pg" id="pg">1 / 16</span>
 <button id="nb" onclick="go(1)">Next →</button>
 </div>
 <script>
